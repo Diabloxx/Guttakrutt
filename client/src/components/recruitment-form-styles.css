@@ -1,0 +1,25 @@
+.form-message {
+  color: #ffadad !important;
+}
+
+/* Override form message styling */
+.form-item .form-message {
+  color: #ff9090 !important;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Style all form messages from shadcn */
+:root {
+  --form-message-error: #ff9090;
+}
+
+[data-shadcn-form-message] {
+  color: var(--form-message-error) !important;
+}
+
+.form-item [data-valid="false"] .input,
+.form-item [data-valid="false"] .textarea,
+.form-item [data-valid="false"] .select-trigger {
+  border-color: #ff7070 !important;
+}

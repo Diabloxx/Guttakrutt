@@ -1,0 +1,527 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 20 14.3% 4.1%;
+  --muted: 60 4.8% 95.9%;
+  --muted-foreground: 25 5.3% 44.7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14.3% 4.1%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14.3% 4.1%;
+  --border: 20 5.9% 90%;
+  --input: 20 5.9% 90%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 60 4.8% 95.9%;
+  --secondary-foreground: 24 9.8% 10%;
+  --accent: 60 4.8% 95.9%;
+  --accent-foreground: 24 9.8% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 60 9.1% 97.8%;
+  --ring: 20 14.3% 4.1%;
+  --radius: 0.5rem;
+  
+  /* WoW Theme Colors - Updated to match Guttakrutt Logo */
+  --wow-dark: 35 55% 8%;
+  --wow-secondary: 35 40% 15%;
+  --wow-gold: 81 100% 54%;
+  --wow-light: 0 0% 92%;
+  --wow-green: 88 100% 54%;
+  --wow-green-dark: 88 70% 25%;
+  
+  /* Faction Colors */
+  --alliance: 210 100% 50%;
+  --horde: 0 100% 35%;
+  
+  /* Class Colors */
+  --druid: 25 100% 52%;
+  --hunter: 83 44% 64%;
+  --mage: 199 70% 68%;
+  --paladin: 331 87% 76%;
+  --priest: 0 0% 100%;
+  --rogue: 57 100% 71%;
+  --shaman: 210 100% 44%;
+  --warlock: 265 31% 65%;
+  --warrior: 36 51% 61%;
+  --monk: 153 100% 50%;
+  --demon-hunter: 283 61% 49%;
+  --death-knight: 357 73% 45%;
+  --evoker: 177 45% 39%;
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* WoW Theme Customization */
+.bg-wow-dark {
+  background-color: hsl(35, 55%, 8%);
+}
+.bg-wow-secondary {
+  background-color: hsl(35, 40%, 15%);
+}
+.text-wow-gold {
+  color: hsl(81, 100%, 54%);
+}
+.text-wow-light {
+  color: hsl(0, 0%, 92%);
+}
+.text-wow-green {
+  color: hsl(88, 100%, 54%);
+}
+.bg-wow-gold {
+  background-color: hsl(81, 100%, 54%);
+}
+.bg-wow-green {
+  background-color: hsl(88, 100%, 54%);
+}
+.border-wow-gold {
+  border-color: hsl(81, 100%, 54%);
+}
+.border-wow-green {
+  border-color: hsl(88, 100%, 54%);
+}
+
+/* Class Colors */
+.text-druid { color: #FF7D0A; }
+.text-hunter { color: #ABD473; }
+.text-mage { color: #69CCF0; }
+.text-paladin { color: #F58CBA; }
+
+/* Animation Keyframes */
+@keyframes progress-bar-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 20px 0; }
+}
+.text-priest { color: #FFFFFF; }
+.text-rogue { color: #FFF569; }
+.text-shaman { color: #0070DE; }
+.text-warlock { color: #9482C9; }
+.text-warrior { color: #C79C6E; }
+.text-monk { color: #00FF96; }
+.text-demon-hunter { color: #A330C9; }
+.text-death-knight { color: #C41F3B; }
+.text-evoker { color: #33937F; }
+
+.bg-druid { background-color: #FF7D0A; }
+.bg-hunter { background-color: #ABD473; }
+.bg-mage { background-color: #69CCF0; }
+.bg-paladin { background-color: #F58CBA; }
+.bg-priest { background-color: #FFFFFF; }
+.bg-rogue { background-color: #FFF569; }
+.bg-shaman { background-color: #0070DE; }
+.bg-warlock { background-color: #9482C9; }
+.bg-warrior { background-color: #C79C6E; }
+.bg-monk { background-color: #00FF96; }
+.bg-demon-hunter { background-color: #A330C9; }
+.bg-death-knight { background-color: #C41F3B; }
+.bg-evoker { background-color: #33937F; }
+
+.border-druid { border-color: #FF7D0A; }
+.border-hunter { border-color: #ABD473; }
+.border-mage { border-color: #69CCF0; }
+.border-paladin { border-color: #F58CBA; }
+.border-priest { border-color: #FFFFFF; }
+.border-rogue { border-color: #FFF569; }
+.border-shaman { border-color: #0070DE; }
+.border-warlock { border-color: #9482C9; }
+.border-warrior { border-color: #C79C6E; }
+.border-monk { border-color: #00FF96; }
+.border-demon-hunter { border-color: #A330C9; }
+.border-death-knight { border-color: #C41F3B; }
+.border-evoker { border-color: #33937F; }
+
+/* Faction Colors */
+.bg-alliance { background-color: #0078FF; }
+.bg-horde { background-color: #B30000; }
+
+/* Custom Background */
+.bg-hero-pattern {
+  background-image: url('../assets/orc-background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Font Families */
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
+
+.font-inter {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Fix for unwanted text content - especially the "0" from MySQL-specific data */
+.boss-card-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.boss-card-wrapper > *:not(.boss-card) {
+  display: none !important;
+}
+
+.boss-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  position: relative;
+}
+
+.boss-card-inner {
+  display: none;
+}
+
+/* Specialized styling for icon container to prevent unwanted content */
+.icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.icon-container:before,
+.icon-container:after,
+.icon-wrapper:before,
+.icon-wrapper:after {
+  content: none !important;
+}
+
+/* Aggressive CSS to remove any "0" artifacts */
+.boss-card-wrapper:after,
+.boss-card:after,
+.boss-card-wrapper > :not(.boss-card),
+.boss-card img + *:not(div):not(span),
+.boss-card > div > .flex > div > * + br + *:not(div):not(span),
+.boss-not-defeated:after,
+.boss-not-defeated:before,
+.boss-not-defeated > div:after,
+.boss-not-defeated > div:before,
+.boss-not-defeated .relative:after,
+.boss-not-defeated img:after,
+.boss-not-defeated img + *:empty {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  position: absolute !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  content: none !important;
+}
+
+/* Super specific rule for the MySQL 0 artifact */
+.boss-not-defeated .icon-wrapper:after,
+.boss-not-defeated .icon-container:after {
+  content: "" !important;
+  display: none !important;
+}
+
+/* Specific fix for MySQL showing zeros next to icons */
+.icon-wrapper img + *:not(div):not(span):not(a),
+.icon-container img + *:not(div):not(span):not(a) {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  position: absolute !important;
+  overflow: hidden !important;
+}
+
+/* Ultra aggressive approach for MySQL zero artifact */
+.boss-overflow-fix:after,
+.boss-overflow-fix:before,
+.boss-overflow-fix > * + *:not(div):not(span),
+.boss-overflow-fix > * ~ *:empty,
+.boss-overflow-fix > *:empty:not(span):not(div) {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  position: absolute !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  content: none !important;
+}
+
+/* Nuclear option for specific element targeting */
+.boss-not-defeated.boss-card-wrapper:after,
+.boss-not-defeated.boss-card-wrapper > *:after,
+.boss-not-defeated > *:not(.boss-card),
+.boss-card-wrapper > *:not(.boss-card),
+.boss-card > *:not(.relative),
+.boss-card > *:empty {
+  content: none !important;
+  font-size: 0 !important;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  position: absolute !important;
+  clip: rect(0, 0, 0, 0) !important;
+}
+
+/* Direct targeting of the most outer element's potential textNodes */
+div:has(> .boss-not-defeated-card) > *:not(.boss-card):not(div):not(span) {
+  display: none !important;
+  opacity: 0 !important;
+  font-size: 0 !important;
+  content: none !important;
+  color: transparent !important;
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Extremely targeted style to capture the zero specifically */
+.boss-not-defeated:not(:empty):after {
+  content: "" !important;
+}
+
+/* Target first-child 0 that appears */
+.boss-not-defeated > *:first-child:not(.boss-card) {
+  display: none !important;
+}
+
+/* New targeted elements for MySQL zero fix */
+.mysql-fix,
+.mysql-zero-catcher,
+.mysql-zero-shield {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  opacity: 0 !important;
+  z-index: 30 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  display: block !important;
+}
+
+/* Special class for the boss cards */
+.boss-not-defeated-card:before,
+.boss-not-defeated-card:after {
+  content: none !important;
+  display: none !important;
+  font-size: 0 !important;
+}
+
+/* Direct targeting for the zero */
+.mysql-zero-catcher:after {
+  content: "";
+  display: none !important;
+}
+
+/* Targeted class for the card wrapper */
+.boss-not-defeated.boss-card-wrapper > *:nth-child(1):not(.boss-card),
+.boss-not-defeated.boss-card-wrapper > br + *:not(.boss-card) {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  clip: rect(0, 0, 0, 0) !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Fix for section gaps */
+section {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+main > section + section {
+  margin-top: 0 !important;
+}
+
+/* Fix for section transition */
+#recruitment {
+  border-top: 1px solid rgba(255, 204, 0, 0.05) !important;
+}
+
+/* Glowing shadows for status indicators */
+.shadow-glow-green {
+  box-shadow: 0 0 8px 2px rgba(0, 230, 0, 0.6);
+}
+.shadow-glow-red {
+  box-shadow: 0 0 8px 2px rgba(255, 30, 30, 0.6);
+}
+.shadow-glow-yellow {
+  box-shadow: 0 0 8px 2px rgba(255, 200, 0, 0.6);
+}
+.shadow-glow-blue {
+  box-shadow: 0 0 8px 2px rgba(0, 120, 255, 0.6);
+}
+
+/* Animation Library for Entire Website */
+
+/* Fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Slide-up animation */
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Slide-down animation */
+@keyframes slideDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Slide-in-right animation */
+@keyframes slideInRight {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Slide-in-left animation */
+@keyframes slideInLeft {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Scale animation */
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Pulsate animation */
+@keyframes pulsate {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+/* Glow animation */
+@keyframes glow {
+  0% { box-shadow: 0 0 5px rgba(136, 255, 0, 0.1); }
+  50% { box-shadow: 0 0 15px rgba(136, 255, 0, 0.3); }
+  100% { box-shadow: 0 0 5px rgba(136, 255, 0, 0.1); }
+}
+
+/* Shimmer animation for progress bars */
+@keyframes shimmer {
+  0% { background-position: -100% 0; }
+  100% { background-position: 100% 0; }
+}
+
+/* Float animation for certain elements */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Utility classes for animations */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.5s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.5s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.5s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.5s ease-out forwards;
+}
+
+.animate-pulsate {
+  animation: pulsate 2s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.2), 
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Animation delays */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-600 { animation-delay: 600ms; }
+.delay-700 { animation-delay: 700ms; }
+.delay-800 { animation-delay: 800ms; }
+.delay-900 { animation-delay: 900ms; }
+.delay-1000 { animation-delay: 1000ms; }

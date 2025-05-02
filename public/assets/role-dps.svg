@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24px" height="24px" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <title>DPS Icon</title>
+    <g id="DPS" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <path d="M12,2 C6.48,2 2,6.48 2,12 C2,17.52 6.48,22 12,22 C17.52,22 22,17.52 22,12 C22,6.48 17.52,2 12,2 Z" id="Circle" fill="#2B2B2B"></path>
+        <path d="M12,5 L7,9 L7,15 L12,19 L17,15 L17,9 L12,5 Z" id="Sword-Shape" fill="#BD2A2E"></path>
+        <path d="M12,7 L9,10 L9,14 L12,17 L15,14 L15,10 L12,7 Z" id="Inner-Sword" fill="#FF6B6E"></path>
+        <path d="M12,9 L11,10 L11,14 L12,15 L13,14 L13,10 L12,9 Z" id="Core" fill="#FFADB0"></path>
+    </g>
+</svg>
