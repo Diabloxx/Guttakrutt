@@ -83,6 +83,8 @@
     "normal": "Normal",
     "currentTier": "Current Tier",
     "previousTier": "Previous Tier",
+    "raidHistory": "Raid History",
+    "current": "Current",
     "bossPulls": "({{count}} pulls)",
     "killDate": "First killed: {{date}}",
     "lastKillDate": "Last killed: {{date}}",

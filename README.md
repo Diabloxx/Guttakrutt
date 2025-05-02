@@ -79,6 +79,7 @@ The application integrates with Blizzard, Raider.IO, and WarcraftLogs APIs to pr
 - [Installation Guide](./docs/INSTALLATION_GUIDE.md): Complete platform-specific setup instructions
 - [WoW API Setup](./docs/WOW_API_SETUP.md): Guide to configuring Blizzard and WarcraftLogs APIs
 - [MySQL Compatibility](./docs/MYSQL_COMPATIBILITY_GUIDE.md): Special notes for MySQL users
+- [Admin User Guide](./docs/ADMIN_USER_GUIDE.md): Administration instructions
 - [Sensitive Data Guide](./docs/SENSITIVE_DATA_GUIDE.md): Security guidelines for API keys and secrets
 - [Token Management](./docs/TOKEN_MANAGEMENT.md): How authentication tokens are handled
 - [Changelog](./docs/CHANGELOG.md): Version history and recent updates

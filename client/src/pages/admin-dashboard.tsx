@@ -52,7 +52,10 @@ import {
   Loader2,
   Send,
   Star,
-  ListFilter
+  ListFilter,
+  Trophy,
+  FileSearch,
+  GanttChart
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -383,6 +386,38 @@ interface ApplicationCommentsResponse {
   apiStatus: string;
 }
 
+interface Expansion {
+  id: number;
+  name: string;
+  shortName: string;
+  isActive: boolean;
+  order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface RaidTier {
+  id: number;
+  name: string;
+  shortName: string;
+  expansionId: number;
+  isActive: boolean;
+  isCurrent: boolean;
+  order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface ExpansionsResponse {
+  expansions: Expansion[];
+  apiStatus: string;
+}
+
+interface RaidTiersResponse {
+  tiers: RaidTier[];
+  apiStatus: string;
+}
+
 // Website settings management functionality
 function useWebsiteSettings() {
   const { toast } = useToast();
@@ -449,6 +484,7 @@ export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('overview');
   const [selectedRaid, setSelectedRaid] = useState<string>("Liberation of Undermine");
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("mythic");
+  const [selectedRaidTierId, setSelectedRaidTierId] = useState<number | null>(null);
   const [logsTabActive, setLogsTabActive] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState('');
   const [classFilter, setClassFilter] = useState('all');
@@ -457,6 +493,7 @@ export default function AdminDashboard() {
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [commentText, setCommentText] = useState('');
+  const [selectedExpansionId, setSelectedExpansionId] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [_, navigate] = useLocation();
@@ -478,21 +515,47 @@ export default function AdminDashboard() {
     }
   }, [isAuthLoading, authData, navigate]);
 
-  // Fetch raid bosses
+  // Fetch raid tier data
+  const {
+    data: raidTiersData,
+    isLoading: isLoadingRaidTiers,
+    refetch: refetchRaidTiers
+  } = useQuery({
+    queryKey: ['/api/raid-tiers'],
+    enabled: !!authData?.loggedIn && (activeSection === 'raid-progress' || activeSection === 'raid-tiers')
+  });
+  
+  // Initialize the tier ID from raid tiers on first load
+  useEffect(() => {
+    if (raidTiersData?.tiers && raidTiersData.tiers.length > 0 && selectedRaidTierId === null) {
+      // Find the current tier first
+      const currentTier = raidTiersData.tiers.find(tier => tier.isCurrent);
+      if (currentTier) {
+        setSelectedRaidTierId(currentTier.id);
+      } else {
+        // If no current tier found, use the first tier
+        setSelectedRaidTierId(raidTiersData.tiers[0].id);
+      }
+    }
+  }, [raidTiersData, selectedRaidTierId]);
+
+  // Fetch raid bosses by tier ID
   const { 
     data: bossesData, 
     isLoading: isLoadingBosses, 
     refetch: refetchBosses 
   } = useQuery<BossResponse>({
-    queryKey: ['/api/raid-bosses', selectedRaid, selectedDifficulty],
+    queryKey: ['/api/raid-bosses/by-tier', selectedRaidTierId, selectedDifficulty],
     queryFn: async () => {
+      if (!selectedRaidTierId) return { bosses: [], apiStatus: 'loading', lastUpdated: new Date().toISOString() };
+      
       const response = await apiRequest(
         'GET', 
-        `/api/raid-bosses?raid=${encodeURIComponent(selectedRaid)}&difficulty=${selectedDifficulty}`
+        `/api/raid-bosses/by-tier/${selectedRaidTierId}?difficulty=${selectedDifficulty}`
       );
       return response.json();
     },
-    enabled: !!authData?.loggedIn && activeSection === 'raid-progress'
+    enabled: !!authData?.loggedIn && activeSection === 'raid-progress' && selectedRaidTierId !== null
   });
 
   // Fetch guild members for admin
@@ -537,6 +600,40 @@ export default function AdminDashboard() {
       return response.json();
     },
     enabled: !!authData?.loggedIn && activeSection === 'logs'
+  });
+  
+  // Fetch expansions for raid tier management
+  const {
+    data: expansionsData,
+    isLoading: isLoadingExpansions,
+    refetch: refetchExpansions
+  } = useQuery({
+    queryKey: ['/api/admin/expansions'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/admin/expansions');
+      return response.json();
+    },
+    enabled: !!authData?.loggedIn && activeSection === 'raid-tiers'
+  });
+
+  // Fetch raid tiers for raid tier management
+  const {
+    data: adminRaidTiersData,
+    isLoading: isLoadingAdminRaidTiers,
+    refetch: refetchAdminRaidTiers
+  } = useQuery({
+    queryKey: ['/api/admin/raid-tiers', selectedExpansionId],
+    queryFn: async () => {
+      let url = '/api/admin/raid-tiers';
+      if (selectedExpansionId) {
+        url += `?expansionId=${selectedExpansionId}`;
+      }
+      const response = await apiRequest('GET', url);
+      return response.json();
+    },
+    enabled: !!authData?.loggedIn && activeSection === 'raid-tiers',
+    // If we get no data from this query, force a refetch once when expansion ID is selected
+    refetchOnMount: true
   });
   
   // Website Content data for content management tab
@@ -830,6 +927,99 @@ export default function AdminDashboard() {
       toast({
         title: "Error",
         description: `Failed to change password: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Mutation to create a new expansion
+  const createExpansionMutation = useMutation({
+    mutationFn: async (expansionData: Partial<Expansion>) => {
+      const response = await apiRequest('POST', '/api/admin/expansions', expansionData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: "Expansion created successfully",
+      });
+      refetchExpansions();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to create expansion: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Mutation to update an expansion
+  const updateExpansionMutation = useMutation({
+    mutationFn: async ({ id, expansionData }: { id: number, expansionData: Partial<Expansion> }) => {
+      const response = await apiRequest('PATCH', `/api/admin/expansions/${id}`, expansionData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: "Expansion updated successfully",
+      });
+      refetchExpansions();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update expansion: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Mutation to create a new raid tier
+  const createRaidTierMutation = useMutation({
+    mutationFn: async (tierData: Partial<RaidTier>) => {
+      const response = await apiRequest('POST', '/api/admin/raid-tiers', tierData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: "Raid tier created successfully",
+      });
+      refetchRaidTiers();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to create raid tier: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Mutation to update a raid tier
+  const updateRaidTierMutation = useMutation({
+    mutationFn: async ({ id, tierData }: { id: number, tierData: Partial<RaidTier> }) => {
+      const response = await apiRequest('PATCH', `/api/admin/raid-tiers/${id}`, tierData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: "Raid tier updated successfully",
+      });
+      refetchRaidTiers();
+      
+      // If we updated current tier status, refresh the progress data too
+      if (data.tier?.isCurrent) {
+        queryClient.invalidateQueries({ queryKey: ['/api/raid-progress'] });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update raid tier: ${error.message}`,
         variant: "destructive",
       });
     },
@@ -1146,6 +1336,18 @@ export default function AdminDashboard() {
               <Award className={`${isSidebarOpen ? 'mr-3' : ''} h-5 w-5`} />
               {isSidebarOpen && <span>Raid Progress</span>}
             </button>
+
+            <button
+              onClick={() => setActiveSection('raid-tiers')}
+              className={`flex items-center w-full px-3 py-2 rounded-lg transition-colors ${
+                activeSection === 'raid-tiers' 
+                  ? 'bg-wow-gold/20 text-wow-gold' 
+                  : 'text-wow-light hover:bg-wow-gold/10 hover:text-wow-gold'
+              } ${!isSidebarOpen && 'justify-center'}`}
+            >
+              <BookOpen className={`${isSidebarOpen ? 'mr-3' : ''} h-5 w-5`} />
+              {isSidebarOpen && <span>Raid Tiers</span>}
+            </button>
             
             <button
               onClick={() => setActiveSection('applications')}
@@ -1259,6 +1461,7 @@ export default function AdminDashboard() {
                 {activeSection === 'overview' && 'Dashboard Overview'}
                 {activeSection === 'members' && 'Guild Members'}
                 {activeSection === 'raid-progress' && 'Raid Progress'}
+                {activeSection === 'raid-tiers' && 'Raid Tier Management'}
                 {activeSection === 'applications' && 'Applications Management'}
                 {activeSection === 'analytics' && 'Guild Analytics'}
                 {activeSection === 'content' && 'Content Management'}
@@ -2103,18 +2306,26 @@ export default function AdminDashboard() {
               <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="raid-select" className="text-wow-gold mb-2 block font-medium">Raid</Label>
+                    <Label htmlFor="raid-tier-select" className="text-wow-gold mb-2 block font-medium">Raid Tier</Label>
                     <Select
-                      value={selectedRaid}
-                      onValueChange={setSelectedRaid}
+                      value={selectedRaidTierId?.toString() || ""}
+                      onValueChange={(value) => setSelectedRaidTierId(parseInt(value))}
                     >
-                      <SelectTrigger id="raid-select" className="bg-black/50 border-wow-gold/20 text-wow-light">
-                        <SelectValue placeholder="Select Raid" />
+                      <SelectTrigger id="raid-tier-select" className="bg-black/50 border-wow-gold/20 text-wow-light">
+                        <SelectValue placeholder="Select Raid Tier" />
                       </SelectTrigger>
                       <SelectContent className="bg-black/90 border-wow-gold/20 text-wow-light">
-                        <SelectItem value="Liberation of Undermine">Liberation of Undermine</SelectItem>
-                        <SelectItem value="Nerub-ar Palace">Nerub-ar Palace</SelectItem>
-                        <SelectItem value="Blackrock Depths">Blackrock Depths</SelectItem>
+                        {isLoadingRaidTiers ? (
+                          <SelectItem value="loading" disabled>Loading tiers...</SelectItem>
+                        ) : raidTiersData?.tiers && raidTiersData.tiers.length > 0 ? (
+                          raidTiersData.tiers.map((tier) => (
+                            <SelectItem key={tier.id} value={tier.id.toString()}>
+                              {tier.name} {tier.isCurrent && "(Current)"}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>No raid tiers found</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -3530,6 +3741,559 @@ export default function AdminDashboard() {
           )}
           
           {/* Settings Section */}
+          {activeSection === 'raid-tiers' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Expansions Management */}
+                <Card className="bg-black/50 border-wow-gold/20 shadow-lg lg:col-span-1">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-green-900/30 to-green-800/10">
+                    <CardTitle className="text-wow-gold text-xl flex items-center">
+                      <BookOpen className="h-6 w-6 mr-2 text-green-400" />
+                      Expansions
+                    </CardTitle>
+                    <CardDescription className="text-wow-light">
+                      Manage World of Warcraft expansions
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {isLoadingExpansions ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-8 w-8 animate-spin text-wow-gold/60" />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-4">
+                          {expansionsData?.expansions?.map((expansion) => (
+                            <div 
+                              key={expansion.id} 
+                              className={`p-3 border rounded-lg flex justify-between items-center cursor-pointer transition-colors ${
+                                selectedExpansionId === expansion.id 
+                                  ? 'bg-wow-gold/20 border-wow-gold/50' 
+                                  : 'border-wow-gold/20 hover:bg-wow-gold/10'
+                              }`}
+                              onClick={() => setSelectedExpansionId(expansion.id)}
+                            >
+                              <div>
+                                <h3 className="text-wow-gold font-medium">{expansion.name}</h3>
+                                <div className="text-wow-light text-sm">
+                                  {expansion.isActive ? (
+                                    <Badge className="bg-green-900/30 text-green-400 border-green-500/30">
+                                      Active
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-wow-light">
+                                      Inactive
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreVertical className="h-4 w-4 text-wow-light" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent className="bg-black/95 border-wow-gold/20 text-wow-light">
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <DropdownMenuItem 
+                                          className="cursor-pointer hover:bg-green-900/20 hover:text-wow-gold"
+                                          onSelect={(e) => e.preventDefault()}
+                                        >
+                                          <Edit className="mr-2 h-4 w-4" /> 
+                                          <span>Edit</span>
+                                        </DropdownMenuItem>
+                                      </DialogTrigger>
+                                      <DialogContent className="bg-black/95 border-wow-gold/30 text-wow-light">
+                                        <DialogHeader>
+                                          <DialogTitle className="text-wow-gold text-xl">Edit Expansion</DialogTitle>
+                                        </DialogHeader>
+                                        <form
+                                          onSubmit={(e) => {
+                                            e.preventDefault();
+                                            const formData = new FormData(e.currentTarget);
+                                            const name = formData.get('name') as string;
+                                            const shortName = formData.get('shortName') as string;
+                                            const order = parseInt(formData.get('order') as string);
+                                            const isActive = formData.get('isActive') === 'on';
+                                            
+                                            updateExpansionMutation.mutate({
+                                              id: expansion.id,
+                                              expansionData: {
+                                                name,
+                                                shortName,
+                                                order,
+                                                isActive
+                                              }
+                                            });
+                                          }}
+                                        >
+                                          <div className="space-y-4 py-4">
+                                            <div className="space-y-2">
+                                              <Label htmlFor="name" className="text-wow-gold">Name</Label>
+                                              <Input
+                                                id="name"
+                                                name="name"
+                                                defaultValue={expansion.name}
+                                                required
+                                                className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label htmlFor="shortName" className="text-wow-gold">Short Name</Label>
+                                              <Input
+                                                id="shortName"
+                                                name="shortName"
+                                                defaultValue={expansion.shortName}
+                                                required
+                                                className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label htmlFor="order" className="text-wow-gold">Order</Label>
+                                              <Input
+                                                id="order"
+                                                name="order"
+                                                type="number"
+                                                defaultValue={expansion.order}
+                                                required
+                                                className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                              />
+                                              <p className="text-xs text-wow-light">Higher numbers appear first</p>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                              <Checkbox 
+                                                id="isActive" 
+                                                name="isActive"
+                                                defaultChecked={expansion.isActive}
+                                              />
+                                              <Label htmlFor="isActive" className="text-wow-gold">Active Expansion</Label>
+                                            </div>
+                                          </div>
+                                          <DialogFooter>
+                                            <Button 
+                                              type="submit" 
+                                              className="bg-green-900 hover:bg-green-800 text-wow-light border border-green-700/50"
+                                            >
+                                              Save Changes
+                                            </Button>
+                                          </DialogFooter>
+                                        </form>
+                                      </DialogContent>
+                                    </Dialog>
+                                    {!expansion.isActive && (
+                                      <DropdownMenuItem 
+                                        className="cursor-pointer hover:bg-green-900/20 hover:text-wow-gold"
+                                        onClick={() => {
+                                          updateExpansionMutation.mutate({
+                                            id: expansion.id,
+                                            expansionData: { isActive: true }
+                                          });
+                                        }}
+                                      >
+                                        <CheckCircle className="mr-2 h-4 w-4" /> 
+                                        <span>Set as Active</span>
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              className="w-full mt-4 bg-green-900 hover:bg-green-800 text-wow-light border border-green-700/50"
+                            >
+                              <Plus className="mr-2 h-4 w-4" /> Add Expansion
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="bg-black/95 border-wow-gold/30 text-wow-light">
+                            <DialogHeader>
+                              <DialogTitle className="text-wow-gold text-xl">Add New Expansion</DialogTitle>
+                              <DialogDescription className="text-wow-light">
+                                Create a new World of Warcraft expansion
+                              </DialogDescription>
+                            </DialogHeader>
+                            <form
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.currentTarget);
+                                const name = formData.get('name') as string;
+                                const shortName = formData.get('shortName') as string;
+                                const order = parseInt(formData.get('order') as string);
+                                const isActive = formData.get('isActive') === 'on';
+                                
+                                // Format the date as an ISO string for proper handling
+                                const releaseDate = new Date().toISOString();
+                                
+                                createExpansionMutation.mutate({
+                                  name,
+                                  shortName,
+                                  order,
+                                  isActive,
+                                  releaseDate
+                                });
+                              }}
+                            >
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="newName" className="text-wow-gold">Name</Label>
+                                  <Input
+                                    id="newName"
+                                    name="name"
+                                    placeholder="e.g. The War Within"
+                                    required
+                                    className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="newShortName" className="text-wow-gold">Short Name</Label>
+                                  <Input
+                                    id="newShortName"
+                                    name="shortName"
+                                    placeholder="e.g. TWW"
+                                    required
+                                    className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="newOrder" className="text-wow-gold">Order</Label>
+                                  <Input
+                                    id="newOrder"
+                                    name="order"
+                                    type="number"
+                                    defaultValue="100"
+                                    required
+                                    className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                  />
+                                  <p className="text-xs text-wow-light">Higher numbers appear first</p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id="newIsActive" 
+                                    name="isActive"
+                                  />
+                                  <Label htmlFor="newIsActive" className="text-wow-gold">Active Expansion</Label>
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button 
+                                  type="submit" 
+                                  className="bg-green-900 hover:bg-green-800 text-wow-light border border-green-700/50"
+                                  disabled={createExpansionMutation.isPending}
+                                >
+                                  {createExpansionMutation.isPending ? 'Creating...' : 'Create Expansion'}
+                                </Button>
+                              </DialogFooter>
+                            </form>
+                          </DialogContent>
+                        </Dialog>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                {/* Raid Tiers Management */}
+                <Card className="bg-black/50 border-wow-gold/20 shadow-lg lg:col-span-2">
+                  <CardHeader className="pb-2 bg-gradient-to-r from-green-900/30 to-green-800/10">
+                    <CardTitle className="text-wow-gold text-xl flex items-center">
+                      <Trophy className="h-6 w-6 mr-2 text-yellow-400" />
+                      Raid Tiers
+                    </CardTitle>
+                    <CardDescription className="text-wow-light">
+                      {selectedExpansionId 
+                        ? `Manage raid tiers for ${expansionsData?.expansions?.find(e => e.id === selectedExpansionId)?.name}` 
+                        : "Select an expansion to view and manage raid tiers"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {isLoadingRaidTiers ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-8 w-8 animate-spin text-wow-gold/60" />
+                      </div>
+                    ) : !selectedExpansionId ? (
+                      <div className="text-center py-8 text-wow-light">
+                        <GanttChart className="h-12 w-12 mx-auto mb-4 text-wow-gold/40" />
+                        <h3 className="text-wow-gold text-lg mb-2">No Expansion Selected</h3>
+                        <p>Please select an expansion from the left panel to view and manage its raid tiers</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {raidTiersData?.tiers?.map((tier) => (
+                            <div
+                              key={tier.id}
+                              className={`p-4 border rounded-lg ${
+                                tier.isCurrent 
+                                  ? 'bg-wow-gold/20 border-wow-gold/50' 
+                                  : 'border-wow-gold/20 hover:bg-wow-gold/10'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h3 className="text-wow-gold font-medium">{tier.name}</h3>
+                                  <p className="text-wow-light text-sm">{tier.shortName}</p>
+                                </div>
+                                <div>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <MoreVertical className="h-4 w-4 text-wow-light" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="bg-black/95 border-wow-gold/20 text-wow-light">
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <DropdownMenuItem 
+                                            className="cursor-pointer hover:bg-green-900/20 hover:text-wow-gold"
+                                            onSelect={(e) => e.preventDefault()}
+                                          >
+                                            <Edit className="mr-2 h-4 w-4" /> 
+                                            <span>Edit</span>
+                                          </DropdownMenuItem>
+                                        </DialogTrigger>
+                                        <DialogContent className="bg-black/95 border-wow-gold/30 text-wow-light">
+                                          <DialogHeader>
+                                            <DialogTitle className="text-wow-gold text-xl">Edit Raid Tier</DialogTitle>
+                                          </DialogHeader>
+                                          <form
+                                            onSubmit={(e) => {
+                                              e.preventDefault();
+                                              const formData = new FormData(e.currentTarget);
+                                              const name = formData.get('name') as string;
+                                              const shortName = formData.get('shortName') as string;
+                                              const order = parseInt(formData.get('order') as string);
+                                              const isActive = formData.get('isActive') === 'on';
+                                              const isCurrent = formData.get('isCurrent') === 'on';
+                                              
+                                              updateRaidTierMutation.mutate({
+                                                id: tier.id,
+                                                tierData: {
+                                                  name,
+                                                  shortName,
+                                                  order,
+                                                  isActive,
+                                                  isCurrent
+                                                }
+                                              });
+                                            }}
+                                          >
+                                            <div className="space-y-4 py-4">
+                                              <div className="space-y-2">
+                                                <Label htmlFor={`name-${tier.id}`} className="text-wow-gold">Name</Label>
+                                                <Input
+                                                  id={`name-${tier.id}`}
+                                                  name="name"
+                                                  defaultValue={tier.name}
+                                                  required
+                                                  className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label htmlFor={`shortName-${tier.id}`} className="text-wow-gold">Short Name</Label>
+                                                <Input
+                                                  id={`shortName-${tier.id}`}
+                                                  name="shortName"
+                                                  defaultValue={tier.shortName}
+                                                  required
+                                                  className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label htmlFor={`order-${tier.id}`} className="text-wow-gold">Order</Label>
+                                                <Input
+                                                  id={`order-${tier.id}`}
+                                                  name="order"
+                                                  type="number"
+                                                  defaultValue={tier.order}
+                                                  required
+                                                  className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                                />
+                                                <p className="text-xs text-wow-light">Higher numbers appear first</p>
+                                              </div>
+                                              <div className="flex items-center space-x-2">
+                                                <Checkbox 
+                                                  id={`isActive-${tier.id}`} 
+                                                  name="isActive"
+                                                  defaultChecked={tier.isActive}
+                                                />
+                                                <Label htmlFor={`isActive-${tier.id}`} className="text-wow-gold">Active Tier</Label>
+                                              </div>
+                                              <div className="flex items-center space-x-2">
+                                                <Checkbox 
+                                                  id={`isCurrent-${tier.id}`} 
+                                                  name="isCurrent"
+                                                  defaultChecked={tier.isCurrent}
+                                                />
+                                                <Label htmlFor={`isCurrent-${tier.id}`} className="text-wow-gold">Current Tier</Label>
+                                              </div>
+                                            </div>
+                                            <DialogFooter>
+                                              <Button 
+                                                type="submit" 
+                                                className="bg-green-900 hover:bg-green-800 text-wow-light border border-green-700/50"
+                                              >
+                                                Save Changes
+                                              </Button>
+                                            </DialogFooter>
+                                          </form>
+                                        </DialogContent>
+                                      </Dialog>
+                                      {!tier.isCurrent && (
+                                        <DropdownMenuItem 
+                                          className="cursor-pointer hover:bg-green-900/20 hover:text-wow-gold"
+                                          onClick={() => {
+                                            updateRaidTierMutation.mutate({
+                                              id: tier.id,
+                                              tierData: { isCurrent: true }
+                                            });
+                                          }}
+                                        >
+                                          <Star className="mr-2 h-4 w-4" /> 
+                                          <span>Set as Current Tier</span>
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {tier.isCurrent && (
+                                  <Badge className="bg-yellow-900/30 text-yellow-400 border-yellow-500/30">
+                                    <Star className="h-3 w-3 mr-1" /> Current
+                                  </Badge>
+                                )}
+                                {tier.isActive ? (
+                                  <Badge className="bg-green-900/30 text-green-400 border-green-500/30">
+                                    Active
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-wow-light">
+                                    Inactive
+                                  </Badge>
+                                )}
+                              </div>
+                              <Separator className="bg-wow-gold/20 my-2" />
+                              <div className="text-wow-light text-sm">
+                                <p>Order: {tier.order}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              className="w-full mt-4 bg-green-900 hover:bg-green-800 text-wow-light border border-green-700/50"
+                              disabled={!selectedExpansionId}
+                            >
+                              <Plus className="mr-2 h-4 w-4" /> Add Raid Tier
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="bg-black/95 border-wow-gold/30 text-wow-light">
+                            <DialogHeader>
+                              <DialogTitle className="text-wow-gold text-xl">Add New Raid Tier</DialogTitle>
+                              <DialogDescription className="text-wow-light">
+                                Create a new raid tier for {expansionsData?.expansions?.find(e => e.id === selectedExpansionId)?.name}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <form
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.currentTarget);
+                                const name = formData.get('name') as string;
+                                const shortName = formData.get('shortName') as string;
+                                const order = parseInt(formData.get('order') as string);
+                                const isActive = formData.get('isActive') === 'on';
+                                const isCurrent = formData.get('isCurrent') === 'on';
+                                
+                                // Format the date as an ISO string for proper handling
+                                const releaseDate = new Date().toISOString();
+                                
+                                createRaidTierMutation.mutate({
+                                  name,
+                                  shortName,
+                                  expansionId: selectedExpansionId!,
+                                  order,
+                                  isActive,
+                                  isCurrent,
+                                  releaseDate
+                                });
+                              }}
+                            >
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="newTierName" className="text-wow-gold">Name</Label>
+                                  <Input
+                                    id="newTierName"
+                                    name="name"
+                                    placeholder="e.g. Liberation of Undermine"
+                                    required
+                                    className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="newTierShortName" className="text-wow-gold">Short Name</Label>
+                                  <Input
+                                    id="newTierShortName"
+                                    name="shortName"
+                                    placeholder="e.g. LOU"
+                                    required
+                                    className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="newTierOrder" className="text-wow-gold">Order</Label>
+                                  <Input
+                                    id="newTierOrder"
+                                    name="order"
+                                    type="number"
+                                    defaultValue="100"
+                                    required
+                                    className="bg-black/50 border-wow-gold/30 text-wow-light"
+                                  />
+                                  <p className="text-xs text-wow-light">Higher numbers appear first</p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id="newTierIsActive" 
+                                    name="isActive"
+                                    defaultChecked
+                                  />
+                                  <Label htmlFor="newTierIsActive" className="text-wow-gold">Active Tier</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id="newTierIsCurrent" 
+                                    name="isCurrent"
+                                  />
+                                  <Label htmlFor="newTierIsCurrent" className="text-wow-gold">Current Tier</Label>
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button 
+                                  type="submit" 
+                                  className="bg-green-900 hover:bg-green-800 text-wow-light border border-green-700/50"
+                                  disabled={createRaidTierMutation.isPending}
+                                >
+                                  {createRaidTierMutation.isPending ? 'Creating...' : 'Create Raid Tier'}
+                                </Button>
+                              </DialogFooter>
+                            </form>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
           {activeSection === 'settings' && (
             <div className="space-y-6">
               <Card className="bg-black/50 border-wow-gold/20 shadow-lg">

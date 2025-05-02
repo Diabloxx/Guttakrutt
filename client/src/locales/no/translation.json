@@ -83,6 +83,8 @@
     "normal": "Normal",
     "currentTier": "Nåværende Tier",
     "previousTier": "Tidligere Tier",
+    "raidHistory": "Raid Historie",
+    "current": "Nåværende",
     "bossPulls": "{{count}} forsøk",
     "killDate": "Først drept: {{date}}",
     "lastKillDate": "Sist drept: {{date}}",

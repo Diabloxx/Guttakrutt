@@ -1,13 +1,14 @@
 import { eq, sql, and, like, desc, or, asc, lt, gte, lte, count } from 'drizzle-orm';
 import {
   guilds, characters, raidProgresses as raidProgress, raidBosses, adminUsers, applications, applicationComments, applicationNotifications,
-  websiteContent, mediaFiles, websiteSettings, translations, webLogs, users, userCharacters,
+  websiteContent, mediaFiles, websiteSettings, translations, webLogs, users, userCharacters, expansions, raidTiers,
   type Guild, type InsertGuild, type Character, type InsertCharacter, type RaidProgress, type InsertRaidProgress,
   type RaidBoss, type InsertRaidBoss, type AdminUser, type InsertAdminUser, type Application, type InsertApplication,
   type ApplicationComment, type InsertApplicationComment, type ApplicationNotification, type InsertApplicationNotification,
   type WebsiteContent, type InsertWebsiteContent, type MediaFile, type InsertMediaFile, 
   type WebsiteSetting, type InsertWebsiteSetting, type Translation, type InsertTranslation,
-  type WebLog, type InsertWebLog, type User, type InsertUser, type UserCharacter, type InsertUserCharacter
+  type WebLog, type InsertWebLog, type User, type InsertUser, type UserCharacter, type InsertUserCharacter,
+  type Expansion, type InsertExpansion, type RaidTier, type InsertRaidTier
 } from '@shared/schema';
 import { IStorage } from './storage';
 import { getDb } from './db';
@@ -587,27 +588,386 @@ export class DatabaseStorage {
     return progress;
   }
 
+  // Expansion operations
+  async getExpansion(id: number): Promise<Expansion | undefined> {
+    try {
+      const db = await getDb();
+      const [expansion] = await db
+        .select()
+        .from(expansions)
+        .where(eq(expansions.id, id));
+      return expansion;
+    } catch (error) {
+      console.error('Error getting expansion by ID:', error);
+      return undefined;
+    }
+  }
+
+  async getExpansions(): Promise<Expansion[]> {
+    try {
+      const db = await getDb();
+      const allExpansions = await db
+        .select()
+        .from(expansions)
+        .orderBy(desc(expansions.order));
+      return allExpansions;
+    } catch (error) {
+      console.error('Error getting all expansions:', error);
+      return [];
+    }
+  }
+
+  async getActiveExpansion(): Promise<Expansion | undefined> {
+    try {
+      const db = await getDb();
+      const [expansion] = await db
+        .select()
+        .from(expansions)
+        .where(eq(expansions.isActive, true))
+        .orderBy(desc(expansions.order))
+        .limit(1);
+      return expansion;
+    } catch (error) {
+      console.error('Error getting active expansion:', error);
+      return undefined;
+    }
+  }
+
+  async createExpansion(expansion: InsertExpansion): Promise<Expansion> {
+    try {
+      // Ensure releaseDate is a proper Date object (default to current date if not provided)
+      const defaultDate = new Date();
+      const inputDate = expansion.releaseDate ? new Date(expansion.releaseDate) : defaultDate;
+      
+      // Create a clean expansion data object with the validated date
+      const expansionData = {
+        ...expansion,
+        releaseDate: inputDate
+      };
+      
+      const db = await getDb();
+      const [createdExpansion] = await db
+        .insert(expansions)
+        .values(expansionData)
+        .returning();
+      return createdExpansion;
+    } catch (error) {
+      console.error('Error creating expansion:', error);
+      throw error;
+    }
+  }
+
+  async updateExpansion(id: number, expansionData: Partial<InsertExpansion>): Promise<Expansion | undefined> {
+    try {
+      // Handle releaseDate properly if it exists
+      let updateData = { ...expansionData };
+      
+      if (updateData.releaseDate) {
+        updateData.releaseDate = new Date(updateData.releaseDate);
+      }
+      
+      const db = await getDb();
+      const [updatedExpansion] = await db
+        .update(expansions)
+        .set(updateData)
+        .where(eq(expansions.id, id))
+        .returning();
+      return updatedExpansion;
+    } catch (error) {
+      console.error('Error updating expansion:', error);
+      return undefined;
+    }
+  }
+
+  async deleteExpansion(id: number): Promise<boolean> {
+    try {
+      const db = await getDb();
+      const result = await db
+        .delete(expansions)
+        .where(eq(expansions.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error deleting expansion:', error);
+      return false;
+    }
+  }
+
+  async setActiveExpansion(id: number): Promise<boolean> {
+    try {
+      const db = await getDb();
+      
+      // First, set all expansions to inactive
+      await db
+        .update(expansions)
+        .set({ isActive: false });
+      
+      // Then set the specified expansion to active
+      const [updatedExpansion] = await db
+        .update(expansions)
+        .set({ isActive: true })
+        .where(eq(expansions.id, id))
+        .returning();
+      
+      return !!updatedExpansion;
+    } catch (error) {
+      console.error('Error setting active expansion:', error);
+      return false;
+    }
+  }
+
+  // Raid tier operations
+  async getRaidTier(id: number): Promise<RaidTier | undefined> {
+    try {
+      const db = await getDb();
+      const [tier] = await db
+        .select()
+        .from(raidTiers)
+        .where(eq(raidTiers.id, id));
+      return tier;
+    } catch (error) {
+      console.error('Error getting raid tier by ID:', error);
+      return undefined;
+    }
+  }
+
+  async getRaidTiersByExpansionId(expansionId: number): Promise<RaidTier[]> {
+    try {
+      const db = await getDb();
+      const tiers = await db
+        .select()
+        .from(raidTiers)
+        .where(eq(raidTiers.expansionId, expansionId))
+        .orderBy(desc(raidTiers.order));
+      return tiers;
+    } catch (error) {
+      console.error('Error getting raid tiers by expansion ID:', error);
+      return [];
+    }
+  }
+
+  async getCurrentRaidTier(): Promise<RaidTier | undefined> {
+    try {
+      const db = await getDb();
+      const [tier] = await db
+        .select()
+        .from(raidTiers)
+        .where(eq(raidTiers.isCurrent, true))
+        .limit(1);
+      return tier;
+    } catch (error) {
+      console.error('Error getting current raid tier:', error);
+      return undefined;
+    }
+  }
+  
+  /**
+   * Get a raid tier by its ID
+   * @param id The raid tier ID to look up
+   * @returns The raid tier if found, undefined otherwise
+   */
+  async getRaidTier(id: number): Promise<RaidTier | undefined> {
+    try {
+      const db = await getDb();
+      const [tier] = await db
+        .select()
+        .from(raidTiers)
+        .where(eq(raidTiers.id, id))
+        .limit(1);
+      return tier;
+    } catch (error) {
+      console.error('Error getting raid tier by ID:', error);
+      return undefined;
+    }
+  }
+
+  async createRaidTier(raidTier: InsertRaidTier): Promise<RaidTier> {
+    try {
+      // Ensure releaseDate is a proper Date object (default to current date if not provided)
+      const defaultDate = new Date();
+      const inputDate = raidTier.releaseDate ? new Date(raidTier.releaseDate) : defaultDate;
+      
+      // Create a clean tier data object with the validated date
+      const tierData = {
+        ...raidTier,
+        releaseDate: inputDate
+      };
+      
+      const db = await getDb();
+      const [createdTier] = await db
+        .insert(raidTiers)
+        .values(tierData)
+        .returning();
+      return createdTier;
+    } catch (error) {
+      console.error('Error creating raid tier:', error);
+      throw error;
+    }
+  }
+
+  async updateRaidTier(id: number, raidTierData: Partial<InsertRaidTier>): Promise<RaidTier | undefined> {
+    try {
+      // Handle releaseDate properly if it exists
+      let updateData = { ...raidTierData };
+      
+      if (updateData.releaseDate) {
+        updateData.releaseDate = new Date(updateData.releaseDate);
+      }
+      
+      const db = await getDb();
+      const [updatedTier] = await db
+        .update(raidTiers)
+        .set(updateData)
+        .where(eq(raidTiers.id, id))
+        .returning();
+      return updatedTier;
+    } catch (error) {
+      console.error('Error updating raid tier:', error);
+      return undefined;
+    }
+  }
+
+  async deleteRaidTier(id: number): Promise<boolean> {
+    try {
+      const db = await getDb();
+      const result = await db
+        .delete(raidTiers)
+        .where(eq(raidTiers.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error deleting raid tier:', error);
+      return false;
+    }
+  }
+
+  async setCurrentRaidTier(id: number): Promise<boolean> {
+    try {
+      const db = await getDb();
+      
+      // First, set all raid tiers to not current
+      await db
+        .update(raidTiers)
+        .set({ isCurrent: false });
+      
+      // Then set the specified tier to current
+      const [updatedTier] = await db
+        .update(raidTiers)
+        .set({ isCurrent: true })
+        .where(eq(raidTiers.id, id))
+        .returning();
+      
+      return !!updatedTier;
+    } catch (error) {
+      console.error('Error setting current raid tier:', error);
+      return false;
+    }
+  }
+
   async getRaidProgressesByGuildId(guildId: number): Promise<RaidProgress[]> {
-    const db = await getDb();
-    
-    // Use a more direct approach without computed columns in orderBy
-    // First, get all raid progresses
-    const progresses = await db
-      .select()
-      .from(raidProgress)
-      .where(eq(raidProgress.guildId, guildId));
+    try {
+      const db = await getDb();
       
-    // Then manually sort them
-    return progresses.sort((a: RaidProgress, b: RaidProgress) => {
-      // First by isCurrentTier (true comes before false)
-      if (a.isCurrentTier && !b.isCurrentTier) return -1;
-      if (!a.isCurrentTier && b.isCurrentTier) return 1;
+      // Get raid progresses with tier information
+      const progresses = await db
+        .select({
+          ...raidProgress,
+          tierOrder: raidTiers.order,
+          isCurrent: raidTiers.isCurrent
+        })
+        .from(raidProgress)
+        .leftJoin(raidTiers, eq(raidProgress.tierId, raidTiers.id))
+        .where(eq(raidProgress.guildId, guildId));
       
-      // Then by lastUpdated date (newest first)
-      const dateA = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
-      const dateB = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
-      return dateB - dateA;
-    });
+      // Sort by tier order (descending) and then by tier currentness
+      return progresses.sort((a, b) => {
+        // First sort by whether tier is current (current tiers first)
+        if (a.isCurrent && !b.isCurrent) return -1;
+        if (!a.isCurrent && b.isCurrent) return 1;
+        
+        // Then sort by tier order (higher order/newer tiers first)
+        if (a.tierOrder !== b.tierOrder) {
+          return (b.tierOrder || 0) - (a.tierOrder || 0);
+        }
+        
+        // Fallback to lastUpdated date
+        const dateA = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+        const dateB = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+        return dateB - dateA;
+      });
+    } catch (error) {
+      console.error('Error getting raid progresses by guild ID:', error);
+      
+      // Attempt to get progresses without tier information
+      try {
+        const db = await getDb();
+        const fallbackProgresses = await db
+          .select()
+          .from(raidProgress)
+          .where(eq(raidProgress.guildId, guildId));
+          
+        return fallbackProgresses.sort((a, b) => {
+          // Sort by name (Liberation of Undermine first)
+          if (a.name.includes("Liberation") && !b.name.includes("Liberation")) return -1;
+          if (!a.name.includes("Liberation") && b.name.includes("Liberation")) return 1;
+          
+          // Then by lastUpdated date (newest first)
+          const dateA = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+          const dateB = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+          return dateB - dateA;
+        });
+      } catch (fallbackError) {
+        console.error('Error in fallback raid progress query:', fallbackError);
+        return [];
+      }
+    }
+  }
+  
+  async getRaidProgressesByTierId(tierId: number): Promise<RaidProgress[]> {
+    try {
+      const db = await getDb();
+      const progresses = await db
+        .select()
+        .from(raidProgress)
+        .where(eq(raidProgress.tierId, tierId))
+        .orderBy(desc(raidProgress.lastUpdated));
+      return progresses;
+    } catch (error) {
+      console.error('Error getting raid progresses by tier ID:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Get raid bosses by tier ID
+   * @param tierId The tier ID to fetch bosses for
+   * @param difficulty Optional difficulty filter
+   * @returns List of raid bosses for the specified tier
+   */
+  async getRaidBossesByTierId(tierId: number, difficulty?: string): Promise<RaidBoss[]> {
+    try {
+      const db = await getDb();
+      
+      let query = db
+        .select()
+        .from(raidBosses)
+        .where(eq(raidBosses.tierId, tierId));
+
+      if (difficulty) {
+        query = query.where(eq(raidBosses.difficulty, difficulty));
+      }
+
+      // Get all raid bosses for the tier and sort by boss order
+      const bosses = await query;
+      
+      // Sort by boss order
+      return bosses.sort((a: any, b: any) => {
+        const orderA = a.bossOrder || 0;
+        const orderB = b.bossOrder || 0;
+        return orderA - orderB;
+      });
+    } catch (error) {
+      console.error('Error getting raid bosses by tier ID:', error);
+      return [];
+    }
   }
 
   async createRaidProgress(raidProgress: InsertRaidProgress): Promise<RaidProgress> {

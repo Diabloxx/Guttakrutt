@@ -2108,8 +2108,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return all characters for this guild (fetching fresh from database to avoid stale data)
       const characters = await storage.getCharactersByGuildId(guild.id);
+      
+      // Randomize the order of characters as requested
+      const randomizedCharacters = [...characters].sort(() => Math.random() - 0.5);
+      
       res.json({
-        characters,
+        characters: randomizedCharacters,
         apiStatus: "Connected",
         lastUpdated: new Date().toISOString()
       });
@@ -2532,6 +2536,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Get Raid Boss Data for a specific raid
+  // Public endpoint for expansions data
+  app.get("/api/expansions", async (req, res) => {
+    try {
+      const expansions = await storage.getExpansions();
+      const activeExpansion = await storage.getActiveExpansion();
+      
+      res.json({
+        expansions,
+        currentExpansion: activeExpansion,
+        apiStatus: "Connected"
+      });
+    } catch (error) {
+      console.error("Error fetching expansions:", error);
+      res.status(500).json({ 
+        expansions: [],
+        apiStatus: "Disconnected",
+        error: "Failed to fetch expansions"
+      });
+    }
+  });
+  
+  // Public endpoint for raid tiers data
+  app.get("/api/raid-tiers", async (req, res) => {
+    try {
+      const expansionId = req.query.expansionId ? parseInt(req.query.expansionId as string) : undefined;
+      let tiers = [];
+      
+      if (expansionId) {
+        tiers = await storage.getRaidTiersByExpansionId(expansionId);
+      } else {
+        const expansions = await storage.getExpansions();
+        // Fetch tiers for all expansions if no specific expansion is specified
+        for (const expansion of expansions) {
+          const expansionTiers = await storage.getRaidTiersByExpansionId(expansion.id);
+          tiers = [...tiers, ...expansionTiers];
+        }
+      }
+      
+      const currentTier = await storage.getCurrentRaidTier();
+      
+      res.json({
+        tiers,
+        currentTier,
+        apiStatus: "Connected"
+      });
+    } catch (error) {
+      console.error("Error fetching raid tiers:", error);
+      res.status(500).json({ 
+        tiers: [],
+        apiStatus: "Disconnected",
+        error: "Failed to fetch raid tiers"
+      });
+    }
+  });
+
+  // Public endpoint for raid bosses by tier ID
+  app.get("/api/raid-bosses/by-tier/:tierId", async (req, res) => {
+    try {
+      const tierId = parseInt(req.params.tierId);
+      const difficulty = req.query.difficulty as string || 'mythic';
+      
+      if (isNaN(tierId)) {
+        return res.status(400).json({
+          error: "Invalid tier ID",
+          bosses: []
+        });
+      }
+      
+      // Get the tier information for context
+      const tier = await storage.getRaidTier(tierId);
+      if (!tier) {
+        return res.status(404).json({
+          error: "Raid tier not found",
+          bosses: []
+        });
+      }
+      
+      // Get all bosses for this tier with the specified difficulty
+      const bosses = await storage.getRaidBossesByTierId(tierId, difficulty);
+      
+      // Get WarcraftLogs data if we have API access
+      let enrichedBosses = bosses;
+      try {
+        // Try to enrich boss data with WarcraftLogs data if available
+        try {
+          const warcraftLogsToken = await getWarcraftLogsAccessToken();
+          if (warcraftLogsToken) {
+            console.log('Enriching tier bosses with WarcraftLogs data');
+            enrichedBosses = await enrichBossesWithLogs(
+              bosses,
+              "Guttakrutt", // Default guild name
+              "Tarren Mill", // Default realm
+              "eu", // Default region
+              tier.name, // Use tier name for the raid name
+              warcraftLogsToken
+            );
+          }
+        } catch (wlError) {
+          console.error('Error enriching tier bosses:', wlError);
+          // Continue with unenriched data
+        }
+      } catch (warcraftlogsError) {
+        console.error('Error enriching bosses with WarcraftLogs data:', warcraftlogsError);
+        // Continue with unenriched data
+      }
+      
+      res.json({
+        bosses: enrichedBosses,
+        tier,
+        apiStatus: "Connected"
+      });
+    } catch (error) {
+      console.error("Error fetching raid bosses by tier:", error);
+      res.status(500).json({
+        bosses: [],
+        apiStatus: "Disconnected",
+        error: "Failed to fetch raid bosses"
+      });
+    }
+  });
+
   app.get("/api/raid-bosses", async (req, res) => {
     try {
       const guildName = (req.query.name || "Guttakrutt") as string;
@@ -4772,6 +4897,292 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.session.adminId);
       
       // Since we've already sent a 200 response, we can only log the error
+    }
+  });
+
+  /**
+   * Expansion and Raid Tier API endpoints
+   */
+
+  // GET endpoint for all expansions (already exists in core routes - see other sections)
+  
+  // GET endpoint for all raid tiers (already exists in core routes - see other sections)
+
+  // Admin endpoints for managing expansions and raid tiers
+
+  // GET endpoint for admin to manage expansions
+  app.get("/api/admin/expansions", requireAdminAuth, async (req, res) => {
+    try {
+      const expansions = await storage.getExpansions();
+      const activeExpansion = await storage.getActiveExpansion();
+      
+      res.json({
+        expansions,
+        activeExpansion,
+        apiStatus: "Connected",
+        totalExpansions: expansions.length
+      });
+    } catch (error) {
+      console.error("Error fetching expansions for admin:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch expansions",
+        apiStatus: "Disconnected",
+        expansions: []
+      });
+    }
+  });
+
+  // POST endpoint to create a new expansion
+  app.post("/api/admin/expansions", requireAdminAuth, async (req, res) => {
+    try {
+      const expansionData = req.body;
+      
+      // Validate expansion data
+      if (!expansionData.name || !expansionData.shortName || expansionData.order === undefined) {
+        return res.status(400).json({ error: "Missing required expansion data" });
+      }
+      
+      const expansion = await storage.createExpansion(expansionData);
+      
+      res.status(201).json({
+        expansion,
+        message: "Expansion created successfully"
+      });
+    } catch (error) {
+      console.error("Error creating expansion:", error);
+      res.status(500).json({ 
+        error: "Failed to create expansion",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // PATCH endpoint to update an expansion
+  app.patch("/api/admin/expansions/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const expansionId = parseInt(req.params.id);
+      const expansionData = req.body;
+      
+      const updatedExpansion = await storage.updateExpansion(expansionId, expansionData);
+      
+      if (!updatedExpansion) {
+        return res.status(404).json({ error: "Expansion not found" });
+      }
+      
+      res.json({
+        expansion: updatedExpansion,
+        message: "Expansion updated successfully"
+      });
+    } catch (error) {
+      console.error("Error updating expansion:", error);
+      res.status(500).json({ 
+        error: "Failed to update expansion",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // POST endpoint to set active expansion
+  app.post("/api/admin/expansions/:id/set-active", requireAdminAuth, async (req, res) => {
+    try {
+      const expansionId = parseInt(req.params.id);
+      
+      const success = await storage.setActiveExpansion(expansionId);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Expansion not found" });
+      }
+      
+      res.json({
+        success: true,
+        message: "Active expansion set successfully"
+      });
+    } catch (error) {
+      console.error("Error setting active expansion:", error);
+      res.status(500).json({ 
+        error: "Failed to set active expansion",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // GET endpoint for admin to manage raid tiers
+  app.get("/api/admin/raid-tiers", requireAdminAuth, async (req, res) => {
+    try {
+      const expansionId = req.query.expansionId ? parseInt(req.query.expansionId as string) : undefined;
+      let tiers = [];
+      
+      if (expansionId) {
+        tiers = await storage.getRaidTiersByExpansionId(expansionId);
+      } else {
+        const expansions = await storage.getExpansions();
+        // Fetch tiers for all expansions if no specific expansion is specified
+        for (const expansion of expansions) {
+          const expansionTiers = await storage.getRaidTiersByExpansionId(expansion.id);
+          tiers = [...tiers, ...expansionTiers];
+        }
+      }
+      
+      const currentTier = await storage.getCurrentRaidTier();
+      
+      res.json({
+        tiers,
+        currentTier,
+        apiStatus: "Connected",
+        totalTiers: tiers.length
+      });
+    } catch (error) {
+      console.error("Error fetching raid tiers for admin:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch raid tiers",
+        apiStatus: "Disconnected",
+        tiers: []
+      });
+    }
+  });
+
+  // POST endpoint to create a new raid tier
+  app.post("/api/admin/raid-tiers", requireAdminAuth, async (req, res) => {
+    try {
+      const tierData = req.body;
+      
+      // Validate tier data
+      if (!tierData.name || !tierData.shortName || !tierData.expansionId || tierData.order === undefined) {
+        return res.status(400).json({ error: "Missing required raid tier data" });
+      }
+      
+      const tier = await storage.createRaidTier(tierData);
+      
+      res.status(201).json({
+        tier,
+        message: "Raid tier created successfully"
+      });
+    } catch (error) {
+      console.error("Error creating raid tier:", error);
+      res.status(500).json({ 
+        error: "Failed to create raid tier",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // PATCH endpoint to update a raid tier
+  app.patch("/api/admin/raid-tiers/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const tierId = parseInt(req.params.id);
+      const tierData = req.body;
+      
+      // If setting this tier as current, use the setCurrentRaidTier method
+      // which properly handles unsetting all other tiers first
+      if (tierData.isCurrent === true) {
+        await storage.setCurrentRaidTier(tierId);
+        
+        // Remove isCurrent from tierData since we've already handled it
+        const { isCurrent, ...restTierData } = tierData;
+        
+        // Only update other properties if there are any left
+        if (Object.keys(restTierData).length > 0) {
+          const updatedTier = await storage.updateRaidTier(tierId, restTierData);
+          
+          if (!updatedTier) {
+            return res.status(404).json({ error: "Raid tier not found" });
+          }
+          
+          res.json({
+            tier: updatedTier,
+            message: "Raid tier updated successfully and set as current"
+          });
+          return;
+        } else {
+          // If there were no other properties to update besides isCurrent
+          const updatedTier = await storage.getRaidTier(tierId);
+          
+          if (!updatedTier) {
+            return res.status(404).json({ error: "Raid tier not found" });
+          }
+          
+          res.json({
+            tier: updatedTier,
+            message: "Raid tier set as current successfully"
+          });
+          return;
+        }
+      } else {
+        // Normal update if not setting as current
+        const updatedTier = await storage.updateRaidTier(tierId, tierData);
+        
+        if (!updatedTier) {
+          return res.status(404).json({ error: "Raid tier not found" });
+        }
+        
+        res.json({
+          tier: updatedTier,
+          message: "Raid tier updated successfully"
+        });
+      }
+    } catch (error) {
+      console.error("Error updating raid tier:", error);
+      res.status(500).json({ 
+        error: "Failed to update raid tier",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // POST endpoint to set current raid tier
+  app.post("/api/admin/raid-tiers/:id/set-current", requireAdminAuth, async (req, res) => {
+    try {
+      const tierId = parseInt(req.params.id);
+      
+      const success = await storage.setCurrentRaidTier(tierId);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Raid tier not found" });
+      }
+      
+      res.json({
+        success: true,
+        message: "Current raid tier set successfully"
+      });
+    } catch (error) {
+      console.error("Error setting current raid tier:", error);
+      res.status(500).json({ 
+        error: "Failed to set current raid tier",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // DELETE endpoint to delete a raid tier
+  app.delete("/api/admin/raid-tiers/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const tierId = parseInt(req.params.id);
+      
+      // Check if any raid progress is associated with this tier
+      const progressRecords = await storage.getRaidProgressesByTierId(tierId);
+      if (progressRecords.length > 0) {
+        return res.status(400).json({ 
+          error: "Cannot delete raid tier with associated progress records",
+          progressCount: progressRecords.length
+        });
+      }
+      
+      const success = await storage.deleteRaidTier(tierId);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Raid tier not found" });
+      }
+      
+      res.json({
+        success: true,
+        message: "Raid tier deleted successfully"
+      });
+    } catch (error) {
+      console.error("Error deleting raid tier:", error);
+      res.status(500).json({ 
+        error: "Failed to delete raid tier",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   });
   

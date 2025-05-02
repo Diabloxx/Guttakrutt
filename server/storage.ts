@@ -2,7 +2,8 @@ import {
   Guild, InsertGuild, Character, InsertCharacter, RaidProgress, InsertRaidProgress,
   RaidBoss, InsertRaidBoss, AdminUser, InsertAdminUser, Application, InsertApplication,
   ApplicationComment, InsertApplicationComment, ApplicationNotification, InsertApplicationNotification,
-  WebLog, InsertWebLog, User, InsertUser, UserCharacter, InsertUserCharacter
+  WebLog, InsertWebLog, User, InsertUser, UserCharacter, InsertUserCharacter,
+  Expansion, InsertExpansion, RaidTier, InsertRaidTier
 } from '@shared/schema';
 import { DatabaseStorage } from './DatabaseStorage';
 import session from "express-session";
@@ -31,15 +32,35 @@ export interface IStorage {
   updateCharacter(id: number, characterData: Partial<InsertCharacter>): Promise<Character | undefined>;
   deleteCharacter(id: number): Promise<boolean>;
 
+  // Expansion operations
+  getExpansion(id: number): Promise<Expansion | undefined>;
+  getExpansions(): Promise<Expansion[]>;
+  getActiveExpansion(): Promise<Expansion | undefined>;
+  createExpansion(expansion: InsertExpansion): Promise<Expansion>;
+  updateExpansion(id: number, expansionData: Partial<InsertExpansion>): Promise<Expansion | undefined>;
+  deleteExpansion(id: number): Promise<boolean>;
+  setActiveExpansion(id: number): Promise<boolean>;
+
+  // Raid tier operations
+  getRaidTier(id: number): Promise<RaidTier | undefined>;
+  getRaidTiersByExpansionId(expansionId: number): Promise<RaidTier[]>;
+  getCurrentRaidTier(): Promise<RaidTier | undefined>;
+  createRaidTier(raidTier: InsertRaidTier): Promise<RaidTier>;
+  updateRaidTier(id: number, raidTierData: Partial<InsertRaidTier>): Promise<RaidTier | undefined>;
+  deleteRaidTier(id: number): Promise<boolean>;
+  setCurrentRaidTier(id: number): Promise<boolean>;
+  
   // Raid progress operations
   getRaidProgress(id: number): Promise<RaidProgress | undefined>;
   getRaidProgressesByGuildId(guildId: number): Promise<RaidProgress[]>;
+  getRaidProgressesByTierId(tierId: number): Promise<RaidProgress[]>;
   createRaidProgress(raidProgress: InsertRaidProgress): Promise<RaidProgress>;
   updateRaidProgress(id: number, raidProgressData: Partial<InsertRaidProgress>): Promise<RaidProgress | undefined>;
 
   // Raid boss operations
   getRaidBoss(id: number): Promise<RaidBoss | undefined>;
   getRaidBossesByGuildId(guildId: number, raidName?: string, difficulty?: string): Promise<RaidBoss[]>;
+  getRaidBossesByTierId(tierId: number, difficulty?: string): Promise<RaidBoss[]>;
   createRaidBoss(raidBoss: InsertRaidBoss): Promise<RaidBoss>;
   updateRaidBoss(id: number, raidBossData: Partial<InsertRaidBoss>): Promise<RaidBoss | undefined>;
   deleteRaidBoss(id: number): Promise<boolean>;

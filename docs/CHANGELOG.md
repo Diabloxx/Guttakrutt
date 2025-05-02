@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.6.0 (2025-05-02)
+
+### Major Features
+- **Expansion Filtering System**: Added ability to filter raid content by WoW expansion
+- **Raid Tier Exploration**: Implemented expansion selector for viewing content from multiple expansions
+- **Dynamic Raid History**: Enhanced raid history display with expansion-specific filtering
+- **Future-Proof Expansion Support**: Added infrastructure for handling future WoW expansions
+
+### User Interface
+- **Expansion Selector**: Added intuitive expansion selection tabs at the top of the raid progress section
+- **Current Expansion Indicator**: Clear visual indication of the currently active expansion
+- **Responsive Design**: Made expansion selection work seamlessly on mobile and desktop
+- **Consistent Styling**: Applied WoW-themed styling to expansion selector elements
+
+### Technical Improvements
+- **Dynamic Content Filtering**: Added filtering logic to display raid tiers based on selected expansion
+- **State Management**: Improved state management for expansion and raid tier selection
+- **Data Organization**: Better organization of raid data by expansion and tier
+- **Error Prevention**: Enhanced error handling for missing raid tier data
+
+### Documentation
+- **Updated Changelog**: Added comprehensive documentation of new expansion filtering features
+
 ## v2.5.0 (2025-05-02)
 
 ### Major Features

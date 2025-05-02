@@ -525,3 +525,69 @@ main > section + section {
 .delay-800 { animation-delay: 800ms; }
 .delay-900 { animation-delay: 900ms; }
 .delay-1000 { animation-delay: 1000ms; }
+
+/* MySQL specific fixes to prevent "0" character from appearing next to boss icons */
+/* This happens when a boss is not defeated in MySQL implementations */
+.boss-icon-wrapper {
+  position: relative;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  letter-spacing: -1000em;
+  color: transparent !important;
+}
+
+.boss-icon-wrapper::after {
+  content: "\200B"; /* Zero-width space */
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  position: absolute;
+  font-size: 0;
+}
+
+/* Special CSS for the MySQL wrapper container */
+.mysql-fix-wrapper {
+  /* Use relative position to create a new stacking context */
+  position: relative;
+  /* Hide any text overflows */
+  overflow: hidden;
+}
+
+/* Additional wrapper for boss cards to prevent zero leakage */
+.boss-card-outer-wrapper {
+  position: relative;
+  /* Ensure that any text is hidden */
+  font-size: 0 !important;
+  color: transparent !important;
+  /* Create a clean slate for child elements */
+  overflow: hidden;
+}
+
+/* Apply this to non-defeated boss cards only */
+.boss-card-outer-wrapper:has([class*="boss"]:not(.boss-defeated-card)) {
+  /* Specifically target and hide the "0" in MySQL */
+  content-visibility: auto;
+}
+
+/* Hide numeric content in any boss-related child elements */
+[class*="boss"] .w-14.h-14 *,
+.mysql-fix-wrapper *::before,
+.mysql-fix-wrapper *::after {
+  font-size: 0 !important;
+  color: transparent !important;
+}
+
+/* Force all text to be hidden in boss card icons */
+.boss-card-outer-wrapper img + *,
+.boss-card-outer-wrapper > *::after {
+  font-size: 0 !important;
+  color: transparent !important;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  display: inline-block;
+  opacity: 0;
+  position: absolute;
+}

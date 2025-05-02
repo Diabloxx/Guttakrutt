@@ -9,6 +9,33 @@ import { eq, asc, desc, sql, and } from 'drizzle-orm';
 import { getDb, pool } from './db';
 
 /**
+ * Utility function to safely convert values to Date objects
+ * This prevents the "value.toISOString is not a function" error in MySQL 
+ * @param value Any potential date value (string, Date, etc)
+ * @returns A proper Date object or null if conversion fails
+ */
+function ensureValidDate(value: any): Date | null {
+  if (!value) return null;
+  
+  if (value instanceof Date) {
+    // Already a Date object, but check if it's valid
+    return isNaN(value.getTime()) ? null : value;
+  }
+  
+  if (typeof value === 'string' || typeof value === 'number') {
+    try {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? null : date;
+    } catch (e) {
+      console.warn('Failed to convert value to Date:', value, e);
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * MySQL-compatible version of DatabaseStorage that handles schema differences
  */
 export class MySqlDatabaseStorage extends DatabaseStorage {
@@ -1703,5 +1730,508 @@ export class MySqlDatabaseStorage extends DatabaseStorage {
       console.error('MySQL: Error verifying guild membership:', error);
       return false;
     }
+  }
+
+  /**
+   * Override getExpansions for MySQL
+   * Gets all expansions ordered by their order field (descending)
+   */
+  async getExpansions(): Promise<schema.Expansion[]> {
+    try {
+      const db = await getDb();
+      const allExpansions = await db
+        .select()
+        .from(schema.expansions)
+        .orderBy(desc(schema.expansions.order));
+      return allExpansions;
+    } catch (error) {
+      console.error('Error getting all expansions (MySQL):', error);
+      return [];
+    }
+  }
+
+  /**
+   * Override getActiveExpansion for MySQL
+   * Gets the active expansion with the highest order
+   */
+  async getActiveExpansion(): Promise<schema.Expansion | undefined> {
+    try {
+      const db = await getDb();
+      const [expansion] = await db
+        .select()
+        .from(schema.expansions)
+        .where(eq(schema.expansions.isActive, true))
+        .orderBy(desc(schema.expansions.order))
+        .limit(1);
+      return expansion;
+    } catch (error) {
+      console.error('Error getting active expansion (MySQL):', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Override createExpansion for MySQL
+   * Creates a new expansion record
+   */
+  async createExpansion(expansion: schema.InsertExpansion): Promise<schema.Expansion> {
+    try {
+      // Use our date utility to ensure we have a valid Date object for MySQL
+      const validDate = ensureValidDate(expansion.releaseDate);
+      
+      // Fix the releaseDate to ensure it's a proper Date object - use raw SQL for better control
+      const fixedExpansion = {
+        ...expansion,
+        releaseDate: validDate
+      };
+      
+      console.log('Creating expansion with data:', JSON.stringify(fixedExpansion, null, 2));
+      
+      // Use raw SQL for MySQL compatibility
+      const sqlQuery = `
+        INSERT INTO expansions 
+        (name, short_name, release_date, is_active, \`order\`, last_updated) 
+        VALUES (?, ?, ?, ?, ?, NOW())
+      `;
+      
+      // Format the date for MySQL
+      const formattedDate = validDate ? 
+        validDate.toISOString().slice(0, 19).replace('T', ' ') : 
+        new Date().toISOString().slice(0, 19).replace('T', ' ');
+      
+      const params = [
+        fixedExpansion.name,
+        fixedExpansion.shortName,
+        formattedDate,
+        fixedExpansion.isActive ? 1 : 0,
+        fixedExpansion.order || 0
+      ];
+      
+      // Log the query and params for debugging
+      console.log('MySQL createExpansion query:', sqlQuery);
+      console.log('MySQL createExpansion params:', params);
+      
+      const result = await pool.query(sqlQuery, params);
+      
+      // Check if we have a valid insertId
+      const insertId = result[0]?.insertId || result.insertId;
+      if (!insertId) {
+        console.error('Invalid insertId received:', insertId);
+        throw new Error('Failed to get valid ID for newly created expansion');
+      }
+      
+      // Get the inserted expansion using raw SQL
+      const selectQuery = `
+        SELECT id, name, short_name, release_date, is_active, \`order\`, last_updated
+        FROM expansions
+        WHERE id = ?
+      `;
+      
+      const selectResult = await pool.query(selectQuery, [insertId]);
+      const rows = selectResult[0] || selectResult;
+      
+      if (!rows || (Array.isArray(rows) && rows.length === 0)) {
+        throw new Error(`Failed to retrieve expansion with ID ${insertId}`);
+      }
+      
+      // Convert the MySQL row to our expected format
+      const insertedExpansion = Array.isArray(rows) ? rows[0] : rows;
+      
+      // Format the response to match our schema expectations
+      return {
+        id: insertedExpansion.id,
+        name: insertedExpansion.name,
+        shortName: insertedExpansion.short_name,
+        releaseDate: new Date(insertedExpansion.release_date),
+        isActive: !!insertedExpansion.is_active,
+        order: insertedExpansion.order,
+        lastUpdated: new Date(insertedExpansion.last_updated)
+      };
+    } catch (error) {
+      console.error('Error creating expansion (MySQL):', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Override updateExpansion for MySQL
+   * Updates an existing expansion record
+   */
+  async updateExpansion(id: number, expansionData: Partial<schema.InsertExpansion>): Promise<schema.Expansion | undefined> {
+    try {
+      // Fix releaseDate if it's present in the update data using our utility
+      const fixedExpansionData = {...expansionData};
+      if (fixedExpansionData.releaseDate) {
+        fixedExpansionData.releaseDate = ensureValidDate(fixedExpansionData.releaseDate);
+      }
+      
+      // Use raw SQL for more control in MySQL
+      let updateQuery = 'UPDATE expansions SET ';
+      const updateParts = [];
+      const params = [];
+      
+      // Build update parts dynamically
+      if (fixedExpansionData.name !== undefined) {
+        updateParts.push('name = ?');
+        params.push(fixedExpansionData.name);
+      }
+      
+      if (fixedExpansionData.shortName !== undefined) {
+        updateParts.push('short_name = ?');
+        params.push(fixedExpansionData.shortName);
+      }
+      
+      if (fixedExpansionData.releaseDate !== undefined) {
+        updateParts.push('release_date = ?');
+        // Format the date properly for MySQL
+        const date = fixedExpansionData.releaseDate;
+        params.push(date ? date.toISOString().slice(0, 19).replace('T', ' ') : null);
+      }
+      
+      if (fixedExpansionData.isActive !== undefined) {
+        updateParts.push('is_active = ?');
+        params.push(fixedExpansionData.isActive ? 1 : 0);
+      }
+      
+      if (fixedExpansionData.order !== undefined) {
+        updateParts.push('`order` = ?');
+        params.push(fixedExpansionData.order);
+      }
+      
+      // Finalize the query
+      updateQuery += updateParts.join(', ') + ', last_updated = NOW() WHERE id = ?';
+      params.push(id);
+      
+      // Execute the update
+      await pool.query(updateQuery, params);
+      
+      // Get the updated expansion
+      const selectQuery = `
+        SELECT id, name, short_name, release_date, is_active, \`order\`, last_updated
+        FROM expansions
+        WHERE id = ?
+      `;
+      
+      const selectResult = await pool.query(selectQuery, [id]);
+      const rows = selectResult[0] || selectResult;
+      
+      if (!rows || (Array.isArray(rows) && rows.length === 0)) {
+        return undefined;
+      }
+      
+      // Convert the MySQL row to our expected format
+      const updatedExpansion = Array.isArray(rows) ? rows[0] : rows;
+      
+      // Format the response to match our schema expectations
+      return {
+        id: updatedExpansion.id,
+        name: updatedExpansion.name,
+        shortName: updatedExpansion.short_name,
+        releaseDate: new Date(updatedExpansion.release_date),
+        isActive: !!updatedExpansion.is_active,
+        order: updatedExpansion.order,
+        lastUpdated: new Date(updatedExpansion.last_updated)
+      };
+    } catch (error) {
+      console.error('Error updating expansion (MySQL):', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Override getRaidTiersByExpansionId for MySQL
+   * Gets all raid tiers for a specific expansion
+   */
+  async getRaidTiersByExpansionId(expansionId: number): Promise<schema.RaidTier[]> {
+    try {
+      const db = await getDb();
+      const tiers = await db
+        .select()
+        .from(schema.raidTiers)
+        .where(eq(schema.raidTiers.expansionId, expansionId))
+        .orderBy(desc(schema.raidTiers.order));
+      return tiers;
+    } catch (error) {
+      console.error('Error getting raid tiers by expansion ID (MySQL):', error);
+      return [];
+    }
+  }
+
+  /**
+   * Override getCurrentRaidTier for MySQL
+   * Gets the current raid tier
+   */
+  async getCurrentRaidTier(): Promise<schema.RaidTier | undefined> {
+    try {
+      const db = await getDb();
+      const [tier] = await db
+        .select()
+        .from(schema.raidTiers)
+        .where(eq(schema.raidTiers.isCurrent, true))
+        .limit(1);
+      return tier;
+    } catch (error) {
+      console.error('Error getting current raid tier (MySQL):', error);
+      return undefined;
+    }
+  }
+  
+  /**
+   * Override getRaidTier for MySQL
+   * Get a raid tier by its ID
+   * @param id The raid tier ID to look up
+   * @returns The raid tier if found, undefined otherwise
+   */
+  async getRaidTier(id: number): Promise<schema.RaidTier | undefined> {
+    try {
+      const db = await getDb();
+      const [tier] = await db
+        .select()
+        .from(schema.raidTiers)
+        .where(eq(schema.raidTiers.id, id))
+        .limit(1);
+      return tier;
+    } catch (error) {
+      console.error('Error getting raid tier by ID (MySQL):', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Override createRaidTier for MySQL
+   * Creates a new raid tier record
+   */
+  async createRaidTier(raidTier: schema.InsertRaidTier): Promise<schema.RaidTier> {
+    try {
+      // Ensure releaseDate is a proper Date object (default to current date if not provided)
+      const defaultDate = new Date();
+      const inputDate = raidTier.releaseDate ? new Date(raidTier.releaseDate) : defaultDate;
+      
+      console.log(`MySQL createRaidTier - Original releaseDate:`, raidTier.releaseDate);
+      console.log(`MySQL createRaidTier - Converted releaseDate:`, inputDate);
+      
+      // Create a clean tier data object with the validated date
+      const fixedRaidTier = {
+        ...raidTier,
+        releaseDate: inputDate
+      };
+      
+      const db = await getDb();
+      const result = await db
+        .insert(schema.raidTiers)
+        .values(fixedRaidTier);
+      
+      // Check if we have a valid insertId
+      const insertId = result.insertId;
+      if (!insertId || isNaN(Number(insertId))) {
+        console.error('Invalid insertId received:', insertId);
+        throw new Error('Failed to get valid ID for newly created raid tier');
+      }
+      
+      // Get the inserted tier
+      const [insertedTier] = await db
+        .select()
+        .from(schema.raidTiers)
+        .where(eq(schema.raidTiers.id, Number(insertId)));
+      
+      if (!insertedTier) {
+        throw new Error(`Failed to retrieve raid tier with ID ${insertId}`);
+      }
+      
+      return insertedTier;
+    } catch (error) {
+      console.error('Error creating raid tier (MySQL):', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Override updateRaidTier for MySQL
+   * Updates an existing raid tier record
+   */
+  async updateRaidTier(id: number, raidTierData: Partial<schema.InsertRaidTier>): Promise<schema.RaidTier | undefined> {
+    try {
+      const db = await getDb();
+      
+      // Fix releaseDate if it's present in the update data
+      const fixedRaidTierData = {...raidTierData};
+      if (fixedRaidTierData.releaseDate) {
+        fixedRaidTierData.releaseDate = fixedRaidTierData.releaseDate instanceof Date
+          ? fixedRaidTierData.releaseDate
+          : new Date(fixedRaidTierData.releaseDate as any);
+      }
+      
+      await db
+        .update(schema.raidTiers)
+        .set(fixedRaidTierData)
+        .where(eq(schema.raidTiers.id, id));
+      
+      // Get the updated tier
+      const [updatedTier] = await db
+        .select()
+        .from(schema.raidTiers)
+        .where(eq(schema.raidTiers.id, id));
+      
+      return updatedTier;
+    } catch (error) {
+      console.error('Error updating raid tier (MySQL):', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Override setCurrentRaidTier for MySQL
+   * Sets a specific raid tier as the current one and unsets any others
+   */
+  async setCurrentRaidTier(id: number): Promise<boolean> {
+    try {
+      const db = await getDb();
+      
+      // First, unset all current raid tiers
+      await db
+        .update(schema.raidTiers)
+        .set({ isCurrent: false });
+      
+      // Then set the specified one as current
+      await db
+        .update(schema.raidTiers)
+        .set({ isCurrent: true })
+        .where(eq(schema.raidTiers.id, id));
+      
+      return true;
+    } catch (error) {
+      console.error('Error setting current raid tier (MySQL):', error);
+      return false;
+    }
+  }
+
+  /**
+   * Override getRaidProgressesByTierId for MySQL
+   * Gets all raid progress records for a specific tier
+   */
+  async getRaidProgressesByTierId(tierId: number): Promise<schema.RaidProgress[]> {
+    try {
+      const db = await getDb();
+      const progresses = await db
+        .select()
+        .from(schema.raidProgresses)
+        .where(eq(schema.raidProgresses.tierId, tierId));
+      return progresses;
+    } catch (error) {
+      console.error('Error getting raid progresses by tier ID (MySQL):', error);
+      return [];
+    }
+  }
+
+  /**
+   * Override getRaidBossesByTierId to handle schema differences between MySQL and PostgreSQL
+   */
+  async getRaidBossesByTierId(tierId: number, difficulty: string = 'mythic'): Promise<schema.RaidBoss[]> {
+    try {
+      console.log(`Fetching raid bosses for tier ${tierId}, difficulty: ${difficulty}`);
+      
+      // Fall back to basic query if we encounter schema issues
+      try {
+        // First attempt with a full query including the tier_id column
+        return await this.getRaidBossesByTierAdvanced(tierId, difficulty);
+      } catch (advancedError) {
+        console.warn('Advanced tier query failed, falling back to basic query:', advancedError);
+        
+        // If the advanced query fails (likely due to missing columns), try a fallback approach
+        // In a real production environment, we should ensure the schema is properly migrated
+        console.error('Tier-based queries require the tier_id column. Please run the migration script.');
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching raid bosses by tier ID:', error);
+      
+      // Return empty array instead of throwing to prevent application failures
+      console.log('Returning empty array as fallback for raid bosses by tier');
+      return [];
+    }
+  }
+  
+  /**
+   * Advanced version that uses the tier_id column
+   */
+  private async getRaidBossesByTierAdvanced(
+    tierId: number, 
+    difficulty: string = 'mythic'
+  ): Promise<schema.RaidBoss[]> {
+    // For MySQL, we need to use raw SQL to only select columns that actually exist in the table
+    // This works around schema differences between PostgreSQL and MySQL
+    let sqlQuery = `
+      SELECT 
+        id, name, raid_name, icon_url, 
+        pull_count, defeated, in_progress, 
+        difficulty, guild_id, last_updated, 
+        boss_id, encounter_id, warcraftlogs_id, 
+        dps_ranking, healing_ranking, tank_ranking, 
+        last_kill_date, kill_count, report_url,
+        best_time, best_parse, fastest_kill,
+        tier_id, boss_order,
+        raider_io_data, warcraft_logs_data
+      FROM 
+        raid_bosses 
+      WHERE 
+        difficulty = ?
+        AND tier_id = ?
+      ORDER BY
+        boss_order ASC
+    `;
+    
+    const params = [difficulty, tierId.toString()];
+    
+    // Execute the raw SQL query to avoid schema differences
+    console.log('MySQL raid_bosses by tier advanced query:', sqlQuery, 'with params:', params);
+    const result = await pool.query(sqlQuery, params);
+    
+    // The result is in the first element of the array
+    const bosses = Array.isArray(result) && result.length > 0 ? result[0] : [];
+    
+    // Transform MySQL's snake_case keys to camelCase to match the expected types
+    const transformedBosses = (bosses as any[]).map(boss => {
+      // Convert snake_case to camelCase
+      const transformed: any = {};
+      Object.keys(boss).forEach(key => {
+        // Handle special cases for snake_case keys
+        if (key === 'raid_name') transformed.raidName = boss[key];
+        else if (key === 'icon_url') transformed.iconUrl = boss[key];
+        else if (key === 'pull_count') transformed.pullCount = boss[key] === 0 ? null : boss[key];
+        else if (key === 'in_progress') transformed.inProgress = boss[key];
+        else if (key === 'boss_id') transformed.bossId = boss[key];
+        else if (key === 'encounter_id') transformed.encounterId = boss[key];
+        else if (key === 'warcraftlogs_id') transformed.warcraftlogsId = boss[key];
+        else if (key === 'dps_ranking') transformed.dpsRanking = boss[key];
+        else if (key === 'healing_ranking') transformed.healingRanking = boss[key];
+        else if (key === 'tank_ranking') transformed.tankRanking = boss[key];
+        else if (key === 'last_kill_date') transformed.lastKillDate = boss[key];
+        else if (key === 'kill_count') transformed.killCount = boss[key];
+        else if (key === 'report_url') transformed.reportUrl = boss[key];
+        else if (key === 'best_time') transformed.bestTime = boss[key];
+        else if (key === 'best_parse') transformed.bestParse = boss[key];
+        else if (key === 'fastest_kill') transformed.fastestKill = boss[key];
+        else if (key === 'guild_id') transformed.guildId = boss[key];
+        else if (key === 'last_updated') transformed.lastUpdated = boss[key];
+        else if (key === 'tier_id') transformed.tierId = boss[key];
+        else if (key === 'boss_order') transformed.bossOrder = boss[key];
+        else if (key === 'raider_io_data') {
+          // Parse JSON string to object if it exists
+          transformed.raiderIoData = boss[key] ? JSON.parse(boss[key]) : null;
+        } 
+        else if (key === 'warcraft_logs_data') {
+          // Parse JSON string to object if it exists
+          transformed.warcraftLogsData = boss[key] ? JSON.parse(boss[key]) : null;
+        }
+        else {
+          // Default case for simple properties (id, name, etc.)
+          transformed[key] = boss[key];
+        }
+      });
+      
+      return transformed;
+    });
+    
+    return transformedBosses;
   }
 }

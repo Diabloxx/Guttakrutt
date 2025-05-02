@@ -92,6 +92,45 @@ export const insertCharacterSchema = createInsertSchema(characters).omit({
   lastUpdated: true,
 });
 
+// Expansion Schema
+export const expansions = createTable("expansions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  shortName: text("short_name").notNull(),
+  releaseDate: timestamp("release_date").notNull(),
+  isActive: boolean("is_active").default(true),
+  order: integer("order").notNull(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertExpansionSchema = createInsertSchema(expansions).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type Expansion = typeof expansions.$inferSelect;
+export type InsertExpansion = z.infer<typeof insertExpansionSchema>;
+
+// Raid Tier Schema
+export const raidTiers = createTable("raid_tiers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  shortName: text("short_name").notNull(), 
+  expansionId: integer("expansion_id").notNull(),
+  releaseDate: timestamp("release_date").notNull(),
+  isCurrent: boolean("is_current").default(false),
+  order: integer("order").notNull(), // Higher number = newer tier
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertRaidTierSchema = createInsertSchema(raidTiers).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type RaidTier = typeof raidTiers.$inferSelect;
+export type InsertRaidTier = z.infer<typeof insertRaidTierSchema>;
+
 // Raid Progress Schema
 export const raidProgresses = createTable("raid_progresses", {
   id: serial("id").primaryKey(),
@@ -103,6 +142,7 @@ export const raidProgresses = createTable("raid_progresses", {
   worldRank: integer("world_rank"),
   regionRank: integer("region_rank"),
   realmRank: integer("realm_rank"),
+  tierId: integer("tier_id"), // Reference to raid_tiers (optional for backward compatibility)
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
@@ -125,6 +165,8 @@ export const raidBosses = createTable("raid_bosses", {
   inProgress: boolean("in_progress").default(false), // New field to explicitly mark boss as in progress
   difficulty: text("difficulty").default("mythic"), // normal, heroic, mythic
   guildId: integer("guild_id").notNull(),
+  tierId: integer("tier_id"), // Reference to raid_tiers table
+  bossOrder: integer("boss_order").default(0), // Order within the raid (1st boss, 2nd boss, etc.)
   lastUpdated: timestamp("last_updated").defaultNow(),
   // Enhanced API integration fields
   bossId: text("boss_id"), // Blizzard/RaiderIO boss identifier

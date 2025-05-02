@@ -4,6 +4,7 @@ import type { RaidBoss } from "@shared/schema";
 
 interface BossProgressItemProps {
   boss: RaidBoss;
+  difficulty?: string;
 }
 
 export default function BossProgressItem({ boss }: BossProgressItemProps) {
@@ -63,41 +64,45 @@ export default function BossProgressItem({ boss }: BossProgressItemProps) {
   // We use the variable directly only in the style attribute to ensure it doesn't leak to the DOM
   const progressWidth = `${progressValue}%`;
 
-  // Use a React Fragment to prevent any DOM leakage
+  // Use completely different DOM structure to prevent zero leakage
   return (
-    <div className={`relative bg-wow-dark/70 rounded-lg border border-wow-green/10 overflow-hidden hover:border-wow-green/30 transition-all shadow-md group hover:shadow-wow-green/10 animate-fade-in ${!boss.defeated ? 'boss-not-defeated-card' : 'boss-defeated-card'}`}>
-      {/* Use a rendering container to control CSS content more precisely */}
-      <div className="boss-card-inner">{/* Empty container to control component structure */}</div>
-      {/* This element specifically captures the MySQL phantom zero */}
-      {!boss.defeated && <span className="mysql-zero-shield" aria-hidden="true"></span>}
-      
+    <div className={`relative bg-wow-dark/70 rounded-lg border border-wow-green/10 overflow-hidden hover:border-wow-green/30 transition-all shadow-md group hover:shadow-wow-green/10 animate-fade-in ${boss.defeated ? 'boss-defeated-card' : 'boss-not-defeated-card'}`}>
       {/* Status indicator */}
       <div className={`absolute top-0 left-0 w-1 h-full ${boss.defeated ? 'bg-green-500' : 'bg-amber-500'}`}></div>
       
       {/* Main content area */}
       <div className="p-4 md:p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center w-full">
-          {/* Boss icon with fancy styling in isolated container */}
-          <div className="relative mr-3 md:mr-4 flex-shrink-0 icon-wrapper">
-            {/* Extra wrapper to prevent unwanted content */}
-            <span className="mysql-fix"></span>
+          {/* Boss icon with complete wrapper to prevent zero leaks */}
+          <div className="relative mr-3 md:mr-4 flex-shrink-0 boss-icon-wrapper" style={{zIndex: 5}}>
+            {/* Glow effect behind icon */}
             <div className={`absolute inset-0 rounded-lg ${boss.defeated ? 'bg-green-500/20' : 'bg-amber-500/20'} blur-sm -m-1 group-hover:blur-md transition-all`}></div>
-            <div className="icon-container">
-              {/* The MySQL phantom zero is likely appearing after this image */}
-              <img 
-                src={iconUrl} 
-                alt={boss.name} 
-                className={`w-12 h-12 md:w-14 md:h-14 rounded-md relative z-10 ${boss.defeated 
-                  ? 'border-2 border-green-500 shadow-lg shadow-green-500/20 group-hover:shadow-green-500/40' 
-                  : 'border-2 border-amber-500 shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 grayscale-[30%]'
-                } transition-all`}
-                onError={(e) => {
-                  // Fallback image if the icon URL fails to load
-                  (e.target as HTMLImageElement).src = "https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
-                }}
-              />
-              {/* Invisible spacer to capture the zero */}
-              <span className="mysql-zero-catcher"></span>
+            
+            {/* Icon container with extra styling to prevent MySQL zeros */}
+            <div 
+              className="w-14 h-14 flex-shrink-0 relative"
+              style={{content: '""', fontSize: 0, color: 'transparent'}}
+            >
+              {/* Double-nested container as an extra shield against DOM leakage */}
+              <div className="w-14 h-14 relative" style={{fontSize: 0, color: 'transparent'}}>
+                {/* The 0 appears after non-defeated boss icons, wrapping in special container */}
+                {!boss.defeated && <span style={{fontSize: 0, position: 'absolute', overflow: 'hidden', opacity: 0, height: 0, width: 0}}>0</span>}
+                <img 
+                  src={iconUrl} 
+                  alt={boss.name} 
+                  style={{content: '""'}}
+                  className={`w-12 h-12 md:w-14 md:h-14 rounded-md relative z-10 ${boss.defeated 
+                    ? 'border-2 border-green-500 shadow-lg shadow-green-500/20 group-hover:shadow-green-500/40' 
+                    : 'border-2 border-amber-500 shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 grayscale-[30%]'
+                  } transition-all`}
+                  onError={(e) => {
+                    // Fallback image if the icon URL fails to load
+                    (e.target as HTMLImageElement).src = "https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg";
+                  }}
+                />
+                {/* Extra hidden container to capture any zeros */}
+                {!boss.defeated && <span style={{position: 'absolute', fontSize: 0, color: 'transparent', overflow: 'hidden', opacity: 0}}>0</span>}
+              </div>
             </div>
             {boss.defeated && (
               <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full w-5 h-5 md:w-6 md:h-6 flex items-center justify-center border-2 border-wow-dark text-white z-20 group-hover:scale-110 transition-transform">
