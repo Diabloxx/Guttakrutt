@@ -1,0 +1,19 @@
+{
+  "blizzard": {
+    "access_token": "YOUR_BLIZZARD_ACCESS_TOKEN",
+    "refresh_token": "YOUR_BLIZZARD_REFRESH_TOKEN",
+    "token_type": "bearer",
+    "expires_in": 86400,
+    "expires_at": "2025-05-02T23:59:59Z",
+    "scope": "openid wow.profile"
+  },
+  "warcraftlogs": {
+    "access_token": "YOUR_WARCRAFTLOGS_ACCESS_TOKEN",
+    "expires_in": 86400,
+    "expires_at": "2025-05-02T23:59:59Z",
+    "token_type": "bearer"
+  },
+  "raiderio": {
+    "api_key": "YOUR_RAIDERIO_API_KEY"
+  }
+}

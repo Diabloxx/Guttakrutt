@@ -1,5 +1,40 @@
 # Changelog
 
+## v2.5.0 (2025-05-02)
+
+### Major Features
+- **Enhanced Security**: Implemented secure random password generation for admin accounts
+- **Cross-Platform Scripting**: Added platform-specific startup scripts for Windows, macOS, and Linux
+- **Comprehensive Documentation**: New detailed installation and token management guides
+- **API Security**: Improved API key and token management with better documentation
+- **SEO Improvements**: Enhanced website discoverability and Google search preview
+
+### Security Enhancements
+- **Random Password Generation**: Default admin accounts now use secure random passwords
+- **Credential Management**: Added comprehensive token management documentation
+- **Example Templates**: Added token.json.example for better developer onboarding
+- **Startup Security**: Improved credential handling in startup scripts
+
+### Installation and Setup
+- **Windows Support**: Enhanced Windows-specific batch file with improved logging
+- **Unix Support**: New shell script for macOS and Linux environments
+- **Environment Detection**: Better handling of environment variables across platforms
+- **Database Configuration**: Simplified database setup for both PostgreSQL and MySQL
+- **Dependency Management**: Improved handling of required dependencies
+
+### Documentation
+- **Installation Guide**: Detailed platform-specific installation instructions
+- **Token Management**: New comprehensive guide for handling API keys and tokens
+- **Security Best Practices**: Enhanced documentation for secure credential handling
+- **Cross-Database Support**: Better documentation for MySQL and PostgreSQL compatibility
+- **README Updates**: Improved quick start instructions with platform-specific guidance
+
+### Technical Improvements
+- **Environment Handling**: Better handling of environment variables across platforms
+- **Logging Enhancements**: More comprehensive logging during startup and operation
+- **Error Handling**: Improved error recovery during installation and startup
+- **Dependency Detection**: Automatic installation of required dependencies
+
 ## v1.5.0 (2025-04-24)
 
 ### Major Features

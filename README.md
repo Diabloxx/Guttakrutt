@@ -76,11 +76,12 @@ The application integrates with Blizzard, Raider.IO, and WarcraftLogs APIs to pr
 
 ## 📋 Documentation
 
-- [Installation Guide](./docs/INSTALLATION.md): Complete setup instructions
+- [Installation Guide](./docs/INSTALLATION_GUIDE.md): Complete platform-specific setup instructions
 - [WoW API Setup](./docs/WOW_API_SETUP.md): Guide to configuring Blizzard and WarcraftLogs APIs
 - [MySQL Compatibility](./docs/MYSQL_COMPATIBILITY_GUIDE.md): Special notes for MySQL users
 - [Admin User Guide](./docs/ADMIN_USER_GUIDE.md): Administration instructions
 - [Sensitive Data Guide](./docs/SENSITIVE_DATA_GUIDE.md): Security guidelines for API keys and secrets
+- [Token Management](./docs/TOKEN_MANAGEMENT.md): How authentication tokens are handled
 - [Changelog](./docs/CHANGELOG.md): Version history and recent updates
 
 ## 🔧 Quick Start
@@ -285,6 +286,7 @@ For detailed security best practices, see our [Sensitive Data Guide](./docs/SENS
 Key points:
 - **Never commit API keys** or sensitive credentials to the repository
 - Use the provided `.env.example` file as a template for your local setup
+- If needed, create a `token.json` file using the `token.json.example` template
 - Keep `token.json` and other credential files in your `.gitignore`
 - For testing, use your own WoW API keys from Battle.net, WarcraftLogs, and Raider.IO
 - Regularly rotate credentials and monitor access logs
