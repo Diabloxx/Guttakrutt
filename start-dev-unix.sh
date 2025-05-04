@@ -87,36 +87,25 @@ echo "Checking required dependencies..."
 echo "Checking required dependencies..." >> $LOGFILE
 npm list tsx cross-env > /dev/null 2>&1 || npm install -D tsx cross-env > logs/install_$TIMESTAMP.log 2>&1
 
-# Run the application and log output
-echo "Running application..."
-echo "Running application..." >> $LOGFILE
-npx tsx server/index.ts | tee logs/output_$TIMESTAMP.log
+# Run the application in a loop to auto-restart on failure
+while true; do
+    echo "Running application..."
+    echo "Running application..." >> $LOGFILE
+    npx tsx server/index.ts | tee logs/output_$TIMESTAMP.log
 
-# Capture exit code
-EXIT_CODE=$?
+    EXIT_CODE=${PIPESTATUS[0]}
 
-# Show exit status
-echo ""
-if [ $EXIT_CODE -ne 0 ]; then
-    echo "Application exited with error code $EXIT_CODE"
-    echo "Application exited with error code $EXIT_CODE" >> $LOGFILE
-    echo "See the log files for details:"
-    echo "  - $LOGFILE"
-    echo "  - logs/output_$TIMESTAMP.log"
-    echo "See the log files for details:" >> $LOGFILE
-    echo "  - $LOGFILE" >> $LOGFILE
-    echo "  - logs/output_$TIMESTAMP.log" >> $LOGFILE
-    echo ""
-    echo "Error detected!"
-    echo "Error detected!" >> $LOGFILE
-else
-    echo "Application exited normally."
-    echo "Application exited normally." >> $LOGFILE
-    echo "See the log files for details:"
-    echo "  - $LOGFILE"
-    echo "  - logs/output_$TIMESTAMP.log"
-    echo "See the log files for details:" >> $LOGFILE
-    echo "  - $LOGFILE" >> $LOGFILE
-    echo "  - logs/output_$TIMESTAMP.log" >> $LOGFILE
-    echo ""
-fi
+    if [ $EXIT_CODE -ne 0 ]; then
+        echo ""
+        echo "Application crashed with exit code $EXIT_CODE"
+        echo "Application crashed with exit code $EXIT_CODE" >> $LOGFILE
+        echo "Restarting in 5 seconds..."
+        echo "Restarting in 5 seconds..." >> $LOGFILE
+        sleep 5
+    else
+        echo ""
+        echo "Application exited normally."
+        echo "Application exited normally." >> $LOGFILE
+        break
+    fi
+done
